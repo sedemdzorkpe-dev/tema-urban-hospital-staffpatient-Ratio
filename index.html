@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="theme-color" content="#0a4a38"/>
+<title>Tema Urban Hospital — Staff Ratio System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<!-- External libs loaded before app module -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root{
+  --green-900:#042C1E;--green-800:#085041;--green-700:#0F6E56;--green-600:#1D9E75;
+  --green-400:#5DCAA5;--green-200:#9FE1CB;--green-100:#C8F0E4;--green-50:#E8F8F2;
+  --amber-700:#854F0B;--amber-600:#BA7517;--amber-400:#EF9F27;--amber-100:#FAC775;--amber-50:#FEF3DC;
+  --red-700:#791F1F;--red-600:#A32D2D;--red-400:#E24B4A;--red-100:#F7C1C1;--red-50:#FFF0F0;
+  --blue-700:#0C447C;--blue-600:#185FA5;--blue-400:#378ADD;--blue-100:#B5D4F4;--blue-50:#EBF4FD;
+  --gray-900:#1A1A1A;--gray-800:#2C2C2A;--gray-700:#444441;--gray-600:#5F5E5A;
+  --gray-400:#888780;--gray-200:#D3D1C7;--gray-100:#ECEAE3;--gray-50:#F7F6F1;
+  --surface:#FFFFFF;--bg:#F4F3EE;--border:#E2E0D8;
+  --font:'DM Sans',sans-serif;--mono:'DM Mono',monospace;
+  --radius:10px;--radius-lg:14px;--radius-xl:18px;
+  --shadow:0 1px 3px rgba(0,0,0,0.06),0 4px 12px rgba(0,0,0,0.05);
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --surface:#1E2320;--bg:#141614;--border:#2E3330;
+    --gray-900:#F0EFE8;--gray-800:#D8D6CE;--gray-700:#B8B6AE;--gray-600:#8A8880;
+    --gray-100:#282A27;--gray-50:#1E2320;
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{height:100%;font-size:16px}
+body{font-family:var(--font);background:var(--bg);color:var(--gray-900);min-height:100%;line-height:1.5;-webkit-font-smoothing:antialiased}
+input,select,button,textarea{font-family:var(--font)}
+a{color:var(--green-700);text-decoration:none}
+
+/* ── Layout ── */
+.screen{display:none;min-height:100vh}
+.screen.active{display:flex;flex-direction:column}
+
+/* ── Login ── */
+.login-bg{
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:24px 16px;
+  background:linear-gradient(160deg,var(--green-900) 0%,var(--green-800) 50%,#0a3d2e 100%);
+}
+.login-logo{display:flex;flex-direction:column;align-items:center;margin-bottom:28px;gap:10px}
+.login-logo-icon{
+  width:60px;height:60px;background:rgba(255,255,255,0.12);border-radius:16px;
+  display:flex;align-items:center;justify-content:center;
+  border:1px solid rgba(255,255,255,0.2);backdrop-filter:blur(10px);
+}
+.login-logo-icon svg{width:28px;height:28px;fill:none;stroke:#9FE1CB;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.login-logo-text{text-align:center}
+.login-logo-title{font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px}
+.login-logo-sub{font-size:12px;color:rgba(255,255,255,0.55);margin-top:2px}
+.login-card{
+  background:var(--surface);border-radius:var(--radius-xl);padding:28px 24px;
+  width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.25);
+}
+.login-card-title{font-size:16px;font-weight:600;color:var(--gray-900);margin-bottom:4px}
+.login-card-sub{font-size:13px;color:var(--gray-600);margin-bottom:22px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;font-weight:500;color:var(--gray-700);margin-bottom:5px;letter-spacing:0.2px}
+.field input,.field select{
+  width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--bg);color:var(--gray-900);font-size:14px;
+  transition:border-color .15s,box-shadow .15s;appearance:none;-webkit-appearance:none;
+}
+.field input:focus,.field select:focus{outline:none;border-color:var(--green-600);box-shadow:0 0 0 3px rgba(29,158,117,0.12)}
+.field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888780' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  padding:10px 18px;border-radius:var(--radius);border:none;cursor:pointer;
+  font-family:var(--font);font-size:14px;font-weight:500;transition:all .15s;
+  -webkit-user-select:none;user-select:none;
+}
+.btn:active{transform:scale(0.97)}
+.btn-green{background:var(--green-700);color:#fff}
+.btn-green:hover{background:var(--green-800)}
+.btn-full{width:100%}
+.btn-outline{background:transparent;color:var(--gray-700);border:1px solid var(--border)}
+.btn-outline:hover{background:var(--gray-100);border-color:var(--gray-200)}
+.btn-sm{padding:7px 12px;font-size:13px;border-radius:8px}
+.btn-danger-outline{background:transparent;color:var(--red-600);border:1px solid var(--red-100)}
+.btn-danger-outline:hover{background:var(--red-50)}
+.login-error{
+  background:var(--red-50);border:1px solid var(--red-100);color:var(--red-700);
+  padding:9px 12px;border-radius:8px;font-size:13px;margin-bottom:14px;display:none;
+}
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
+.tag-green{background:var(--green-50);color:var(--green-800)}
+.tag-amber{background:var(--amber-50);color:var(--amber-700)}
+.tag-red{background:var(--red-50);color:var(--red-700)}
+.tag-blue{background:var(--blue-50);color:var(--blue-700)}
+.tag-gray{background:var(--gray-100);color:var(--gray-700)}
+
+/* ── Topbar ── */
+.topbar{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:0 16px;height:56px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;
+}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.topbar-icon{
+  width:34px;height:34px;background:var(--green-700);border-radius:9px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.topbar-icon svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.topbar-title{font-size:14px;font-weight:600;color:var(--gray-900);letter-spacing:-0.2px}
+.topbar-sub{font-size:11px;color:var(--gray-600)}
+.topbar-right{display:flex;align-items:center;gap:8px}
+.topbar-user{font-size:12px;color:var(--gray-600);display:none}
+@media(min-width:500px){.topbar-user{display:block}}
+.avatar{
+  width:30px;height:30px;border-radius:50%;background:var(--green-100);
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:600;color:var(--green-800);flex-shrink:0;
+}
+
+/* ── Nav ── */
+.bottom-nav{
+  position:fixed;bottom:0;left:0;right:0;height:60px;
+  background:var(--surface);border-top:1px solid var(--border);
+  display:flex;align-items:center;z-index:100;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.nav-item{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;cursor:pointer;padding:6px 4px;
+  font-size:10px;color:var(--gray-600);transition:color .15s;
+}
+.nav-item svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:stroke .15s}
+.nav-item.active{color:var(--green-700)}
+.nav-item.active svg{stroke:var(--green-700)}
+.nav-label{font-weight:500}
+
+/* ── Main content ── */
+.content{flex:1;padding:16px 16px 80px;max-width:800px;width:100%;margin:0 auto}
+
+/* ── Cards ── */
+.card{background:var(--surface);border-radius:var(--radius-lg);border:1px solid var(--border);overflow:hidden}
+.card-body{padding:14px 16px}
+.card-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:14px;font-weight:600;color:var(--gray-900)}
+.card-sub{font-size:12px;color:var(--gray-600);margin-top:2px}
+
+/* ── Metric grid ── */
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}
+@media(min-width:500px){.metrics{grid-template-columns:repeat(4,1fr)}}
+.metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px}
+.metric-label{font-size:11px;color:var(--gray-600);margin-bottom:4px;font-weight:500}
+.metric-value{font-size:24px;font-weight:600;color:var(--gray-900);letter-spacing:-0.5px;line-height:1}
+.metric-sub{font-size:11px;color:var(--gray-600);margin-top:3px}
+.metric-green .metric-value{color:var(--green-700)}
+.metric-red .metric-value{color:var(--red-600)}
+.metric-amber .metric-value{color:var(--amber-600)}
+
+/* ── Unit cards ── */
+.units-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:16px}
+@media(min-width:600px){.units-grid{grid-template-columns:repeat(3,1fr)}}
+.unit-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px}
+.unit-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
+.unit-name{font-size:14px;font-weight:600;color:var(--gray-900);line-height:1.3}
+.unit-date{font-size:11px;color:var(--gray-600);margin-top:2px}
+.status-pill{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.pill-ok{background:var(--green-50);color:var(--green-800)}
+.pill-warn{background:var(--amber-50);color:var(--amber-700)}
+.pill-crit{background:var(--red-50);color:var(--red-700)}
+.pill-gray{background:var(--gray-100);color:var(--gray-600)}
+.unit-stats{display:flex;flex-direction:column;gap:6px}
+.stat-row{display:flex;justify-content:space-between;align-items:center;font-size:12px}
+.stat-label{color:var(--gray-600)}
+.stat-val{font-weight:600;color:var(--gray-900)}
+.stat-val.ok{color:var(--green-700)}
+.stat-val.warn{color:var(--amber-600)}
+.stat-val.crit{color:var(--red-600)}
+.ratio-track{height:4px;background:var(--gray-100);border-radius:2px;margin-top:10px;overflow:hidden}
+.ratio-fill{height:100%;border-radius:2px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+
+/* ── Alert banners ── */
+.alert{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:14px;border:1px solid transparent}
+.alert svg{width:16px;height:16px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.alert-ok{background:var(--green-50);color:var(--green-800);border-color:var(--green-200)}
+.alert-warn{background:var(--amber-50);color:var(--amber-700);border-color:var(--amber-100)}
+.alert-crit{background:var(--red-50);color:var(--red-700);border-color:var(--red-100)}
+.alert-info{background:var(--blue-50);color:var(--blue-700);border-color:var(--blue-100)}
+
+/* ── Form ── */
+.form-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;margin-bottom:14px}
+.form-section-title{font-size:11px;font-weight:600;color:var(--gray-600);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:14px}
+.form-grid{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:400px){.form-grid{grid-template-columns:1fr 1fr}}
+.form-row{display:flex;flex-direction:column;gap:5px}
+.form-row.full{grid-column:1/-1}
+.form-row label{font-size:12px;font-weight:500;color:var(--gray-700);letter-spacing:0.2px}
+.form-row input,.form-row select,.form-row textarea{
+  padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--bg);color:var(--gray-900);font-size:14px;
+  transition:border-color .15s,box-shadow .15s;appearance:none;-webkit-appearance:none;
+}
+.form-row select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888780' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{outline:none;border-color:var(--green-600);box-shadow:0 0 0 3px rgba(29,158,117,0.12)}
+.form-row textarea{resize:vertical;min-height:72px;font-size:13px}
+.form-actions{display:flex;gap:10px;flex-wrap:wrap}
+.ratio-preview{padding:12px 14px;border-radius:var(--radius);font-size:13px;margin:10px 0;display:none;border:1px solid transparent}
+
+/* ── Table ── */
+.table-wrap{overflow-x:auto;border-radius:var(--radius-lg);border:1px solid var(--border)}
+.data-table{width:100%;border-collapse:collapse;font-size:13px;min-width:520px}
+.data-table th{padding:9px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-600);background:var(--bg);border-bottom:1px solid var(--border);white-space:nowrap;letter-spacing:0.3px;text-transform:uppercase}
+.data-table td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--gray-900);vertical-align:middle}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:var(--gray-50)}
+.del-btn{padding:5px 10px;border-radius:6px;border:1px solid var(--red-100);background:transparent;color:var(--red-600);cursor:pointer;font-size:12px;font-family:var(--font);font-weight:500;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.del-btn:hover{background:var(--red-50)}
+.del-btn svg{width:13px;height:13px;flex-shrink:0}
+.export-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center}
+.export-bar-title{font-size:13px;color:var(--gray-600);margin-right:4px}
+.btn-excel{background:#1D6F42;color:#fff;border:none;padding:8px 14px;border-radius:var(--radius);font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-family:var(--font)}
+.btn-excel:hover{background:#175c36}
+.btn-excel:active{transform:scale(0.97)}
+.btn-pdf{background:#C0392B;color:#fff;border:none;padding:8px 14px;border-radius:var(--radius);font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-family:var(--font)}
+.btn-pdf:hover{background:#a93226}
+.btn-pdf:active{transform:scale(0.97)}
+.btn-excel svg,.btn-pdf svg{width:15px;height:15px;flex-shrink:0}
+
+/* ── Chart ── */
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;margin-bottom:14px}
+.chart-title{font-size:14px;font-weight:600;color:var(--gray-900);margin-bottom:4px}
+.chart-sub{font-size:12px;color:var(--gray-600);margin-bottom:14px}
+.chart-legend{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--gray-700)}
+.swatch{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.swatch-line{width:16px;height:3px;border-radius:2px;flex-shrink:0}
+
+/* ── Projection table ── */
+.proj-table{width:100%;border-collapse:collapse;font-size:12px;min-width:420px}
+.proj-table th{padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-600);background:var(--bg);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:0.3px}
+.proj-table td{padding:9px 10px;border-bottom:1px solid var(--border);color:var(--gray-900)}
+.proj-table tr:last-child td{border-bottom:none}
+
+/* ── Misc ── */
+.page-title{font-size:18px;font-weight:600;color:var(--gray-900);letter-spacing:-0.3px;margin-bottom:2px}
+.page-sub{font-size:13px;color:var(--gray-600);margin-bottom:18px}
+.empty{text-align:center;padding:40px 20px;color:var(--gray-600);font-size:13px}
+.empty svg{width:36px;height:36px;stroke:var(--gray-400);fill:none;stroke-width:1.5;margin:0 auto 10px;display:block}
+.divider{height:1px;background:var(--border);margin:14px 0}
+.loading{text-align:center;padding:40px;color:var(--gray-600);font-size:13px}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--green-600);display:inline-block;margin-right:5px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.firebase-notice{
+  background:var(--amber-50);border:1px solid var(--amber-100);border-radius:var(--radius);
+  padding:14px 16px;font-size:13px;color:var(--amber-700);margin-bottom:16px;line-height:1.7;
+}
+.firebase-notice strong{color:var(--amber-700)}
+.firebase-notice code{background:rgba(0,0,0,0.07);padding:1px 5px;border-radius:4px;font-family:var(--mono);font-size:12px}
+.config-form{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px}
+.config-title{font-size:15px;font-weight:600;margin-bottom:4px;color:var(--gray-900)}
+.config-sub{font-size:13px;color:var(--gray-600);margin-bottom:18px}
+.config-grid{display:grid;grid-template-columns:1fr;gap:10px}
+@media(min-width:500px){.config-grid{grid-template-columns:1fr 1fr}}
+.step{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.step:last-child{border-bottom:none}
+.step-num{width:22px;height:22px;border-radius:50%;background:var(--green-700);color:#fff;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.step-content{font-size:13px;color:var(--gray-800);line-height:1.6}
+.step-content strong{color:var(--gray-900);font-weight:500}
+</style>
+</head>
+<body>
+
+<!-- ── FIREBASE SETUP SCREEN ── -->
+<div class="screen active" id="screen-setup">
+  <div style="min-height:100vh;padding:24px 16px;max-width:640px;margin:0 auto">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px;padding-top:16px">
+      <div style="width:40px;height:40px;background:var(--green-700);border-radius:10px;display:flex;align-items:center;justify-content:center">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      </div>
+      <div>
+        <div style="font-size:15px;font-weight:600;color:var(--gray-900)">Tema Urban Hospital</div>
+        <div style="font-size:12px;color:var(--gray-600)">Staff Ratio System — Firebase Setup</div>
+      </div>
+    </div>
+
+    <div class="firebase-notice">
+      <strong>One-time setup required.</strong> This app uses Google Firebase for real-time sync across all devices. 
+      Follow the steps below to connect your Firebase project, then this page will never appear again on this device.
+    </div>
+
+    <div class="config-form">
+      <div class="config-title">How to get your Firebase config</div>
+      <div class="config-sub">Complete these steps in the Firebase Console (free tier is sufficient)</div>
+      <div class="step"><div class="step-num">1</div><div class="step-content">Go to <strong>console.firebase.google.com</strong> → Create a new project (e.g. <code>tema-hospital</code>)</div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content">In the project, go to <strong>Project settings → Your apps → Add app → Web</strong>. Register the app and copy the config object shown.</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content">Go to <strong>Build → Firestore Database → Create database</strong> → Start in <strong>test mode</strong> → choose your region.</div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-content">Paste each value from the Firebase config object into the fields below and click <strong>Connect</strong>.</div></div>
+    </div>
+
+    <div class="config-form">
+      <div class="config-title">Firebase project credentials</div>
+      <div class="config-sub">All fields are required. Values are saved locally on this device only.</div>
+      <div class="config-grid">
+        <div class="form-row"><label>API Key</label><input type="text" id="cfg-apiKey" placeholder="AIzaSy..."/></div>
+        <div class="form-row"><label>Auth Domain</label><input type="text" id="cfg-authDomain" placeholder="your-project.firebaseapp.com"/></div>
+        <div class="form-row"><label>Project ID</label><input type="text" id="cfg-projectId" placeholder="your-project-id"/></div>
+        <div class="form-row"><label>Storage Bucket</label><input type="text" id="cfg-storageBucket" placeholder="your-project.appspot.com"/></div>
+        <div class="form-row"><label>Messaging Sender ID</label><input type="text" id="cfg-messagingSenderId" placeholder="123456789"/></div>
+        <div class="form-row"><label>App ID</label><input type="text" id="cfg-appId" placeholder="1:123:web:abc123"/></div>
+      </div>
+      <div id="cfg-error" style="color:var(--red-600);font-size:13px;margin-top:10px;display:none"></div>
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-green" onclick="saveConfig()">Connect to Firebase</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── LOGIN SCREEN ── -->
+<div class="screen" id="screen-login">
+  <div class="login-bg">
+    <div class="login-logo">
+      <div class="login-logo-icon">
+        <svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      </div>
+      <div class="login-logo-text">
+        <div class="login-logo-title">Tema Urban Hospital</div>
+        <div class="login-logo-sub">Nursing &amp; Midwifery Staffing System</div>
+      </div>
+    </div>
+    <div class="login-card">
+      <div class="login-card-title">Sign in to your account</div>
+      <div class="login-card-sub">Enter your credentials below</div>
+      <div id="login-error" class="login-error"></div>
+      <div class="field"><label>Username</label><input type="text" id="l-user" placeholder="Enter username" autocomplete="username"/></div>
+      <div class="field"><label>Password</label><input type="password" id="l-pass" placeholder="Enter password" autocomplete="current-password"/></div>
+      <div class="field"><label>Role / Unit</label>
+        <select id="l-role">
+          <option value="">Select your role...</option>
+          <option value="head">Head of Nursing &amp; Midwifery</option>
+          <option value="opd">OPD Recovery Staff</option>
+          <option value="paed">Paediatric / NICU Staff</option>
+          <option value="mat">Maternity Staff</option>
+        </select>
+      </div>
+      <button class="btn btn-green btn-full" onclick="doLogin()">Sign in</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div class="screen" id="screen-app">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-icon">
+        <svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      </div>
+      <div>
+        <div class="topbar-title">Tema Urban Hospital</div>
+        <div class="topbar-sub" id="tb-date"></div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="topbar-user" id="tb-user"></span>
+      <div class="avatar" id="tb-avatar">HN</div>
+      <button class="btn btn-outline btn-sm" onclick="doLogout()">Out</button>
+    </div>
+  </div>
+
+  <div id="tab-content" class="content"></div>
+
+  <nav class="bottom-nav" id="bottom-nav"></nav>
+</div>
+
+<script>
+(async function(){
+const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+const { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+
+// ── Constants ──
+const USERS = {
+  headnurse:{pass:'admin123',role:'head',name:'Head of Nursing & Midwifery',unit:'All Units',initials:'HN'},
+  opd_staff:{pass:'opd2024',role:'opd',name:'OPD Recovery Staff',unit:'OPD Recovery',initials:'OR'},
+  paed_staff:{pass:'paed2024',role:'paed',name:'Paediatric / NICU Staff',unit:'Paediatric / NICU',initials:'PN'},
+  mat_staff:{pass:'mat2024',role:'mat',name:'Maternity Staff',unit:'Maternity',initials:'MS'}
+};
+const UNIT_KEYS=['opd','paed','mat'];
+const UNIT_LABELS={'opd':'OPD Recovery','paed':'Paediatric / NICU','mat':'Maternity'};
+const RECOMMENDED={'opd':4,'paed':2,'mat':3};
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const CHART_COLORS=['#378ADD','#D85A30','#1D9E75'];
+
+let db=null, unsubscribe=null, appData=[], currentUser=null, demoMode=false;
+let charts={};
+
+// ── Firebase init ──
+function loadConfig(){try{return JSON.parse(localStorage.getItem('tuh_fb_config'));}catch{return null;}}
+function saveConfigLS(cfg){localStorage.setItem('tuh_fb_config',JSON.stringify(cfg));}
+
+window.saveConfig=function(){
+  const cfg={
+    apiKey:document.getElementById('cfg-apiKey').value.trim(),
+    authDomain:document.getElementById('cfg-authDomain').value.trim(),
+    projectId:document.getElementById('cfg-projectId').value.trim(),
+    storageBucket:document.getElementById('cfg-storageBucket').value.trim(),
+    messagingSenderId:document.getElementById('cfg-messagingSenderId').value.trim(),
+    appId:document.getElementById('cfg-appId').value.trim()
+  };
+  const missing=Object.entries(cfg).filter(([,v])=>!v).map(([k])=>k);
+  if(missing.length){document.getElementById('cfg-error').textContent='Missing: '+missing.join(', ');document.getElementById('cfg-error').style.display='block';return;}
+  saveConfigLS(cfg);
+  initFirebase(cfg);
+};
+
+window.useDemoMode=function(){
+  demoMode=true;
+  localStorage.setItem('tuh_demo','1');
+  seedDemo();
+  showScreen('login');
+};
+
+function initFirebase(cfg){
+  try{
+    const app=initializeApp(cfg);
+    db=getFirestore(app);
+    showScreen('login');
+  }catch(e){
+    document.getElementById('cfg-error').textContent='Firebase error: '+e.message;
+    document.getElementById('cfg-error').style.display='block';
+  }
+}
+
+// ── Demo data ──
+function seedDemo(){
+  if(appData.length>0)return;
+  const now=new Date();const yr=now.getFullYear();
+  for(let m=0;m<now.getMonth();m++){
+    UNIT_KEYS.forEach(uk=>{
+      const n=Math.floor(Math.random()*4)+3;
+      const p=Math.floor(Math.random()*20)+8;
+      const d=new Date(yr,m,Math.floor(Math.random()*25)+1);
+      appData.push({id:'demo_'+Date.now()+Math.random(),unit:uk,date:fmtDate(d),nurses:n,patients:p,shift:['morning','afternoon','night'][Math.floor(Math.random()*3)],submittedBy:'System',submittedAt:d.toISOString(),note:''});
+    });
+  }
+}
+
+// ── Helpers ──
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+id).classList.add('active');
+}
+function fmtDate(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function today(){return fmtDate(new Date());}
+function ratioStatus(uk,nurses,patients){
+  const r=patients/nurses;const rec=RECOMMENDED[uk];
+  return r<=rec?'ok':r<=rec*1.4?'warn':'crit';
+}
+function statusLabel(s){return s==='ok'?'Adequate':s==='warn'?'Stretched':'Critical';}
+function pillClass(s){return s==='ok'?'pill-ok':s==='warn'?'pill-warn':s==='crit'?'pill-crit':'pill-gray';}
+function valClass(s){return s==='ok'?'ok':s==='warn'?'warn':'crit';}
+function destroyCharts(){Object.values(charts).forEach(c=>{try{c.destroy();}catch{}});charts={};}
+
+// ── Auth ──
+window.doLogin=function(){
+  const u=document.getElementById('l-user').value.trim();
+  const p=document.getElementById('l-pass').value;
+  const r=document.getElementById('l-role').value;
+  const err=document.getElementById('login-error');
+  err.style.display='none';
+  if(!u||!p||!r){err.textContent='Please fill in all fields.';err.style.display='block';return;}
+  const ud=USERS[u];
+  if(!ud||ud.pass!==p){err.textContent='Invalid username or password.';err.style.display='block';return;}
+  if(ud.role!==r){err.textContent='Role does not match this account.';err.style.display='block';return;}
+  currentUser={username:u,...ud};
+  document.getElementById('tb-user').textContent=ud.name;
+  document.getElementById('tb-avatar').textContent=ud.initials;
+  const now=new Date();
+  document.getElementById('tb-date').textContent=now.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  buildNav();
+  if(!demoMode&&db)subscribeFirestore();
+  showScreen('app');
+  renderTab(currentUser.role==='head'?'dashboard':'entry');
+};
+
+window.doLogout=function(){
+  if(unsubscribe){unsubscribe();unsubscribe=null;}
+  currentUser=null;destroyCharts();
+  showScreen('login');
+  document.getElementById('l-pass').value='';
+  document.getElementById('login-error').style.display='none';
+};
+
+// ── Firestore ──
+function subscribeFirestore(){
+  if(unsubscribe)unsubscribe();
+  const q=query(collection(db,'entries'),orderBy('submittedAt','desc'));
+  unsubscribe=onSnapshot(q,snap=>{
+    appData=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderCurrentTab();
+  });
+}
+
+async function addEntry(entry){
+  if(demoMode){entry.id='demo_'+Date.now();appData.unshift(entry);renderCurrentTab();return;}
+  await addDoc(collection(db,'entries'),{...entry,submittedAt:serverTimestamp()});
+}
+
+window.deleteEntry=async function(id){
+  if(!confirm('Delete this entry?'))return;
+  if(demoMode){appData=appData.filter(r=>r.id!==id);renderCurrentTab();return;}
+  await deleteDoc(doc(db,'entries',id));
+};
+
+// ── Navigation ──
+let activeTab='dashboard';
+function buildNav(){
+  const tabs=currentUser.role==='head'
+    ?[{id:'dashboard',label:'Dashboard',svg:'<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'},
+      {id:'log',label:'Records',svg:'<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>'},
+      {id:'monthly',label:'Monthly',svg:'<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'},
+      {id:'annual',label:'Annual',svg:'<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>'},
+      {id:'entry',label:'Add',svg:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>'}]
+    :[{id:'entry',label:'Add entry',svg:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>'},
+      {id:'mylog',label:'My records',svg:'<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>'}];
+  document.getElementById('bottom-nav').innerHTML=tabs.map(t=>`
+    <div class="nav-item${t.id===activeTab?' active':''}" id="nav-${t.id}" onclick="renderTab('${t.id}')">
+      <svg viewBox="0 0 24 24">${t.svg}</svg>
+      <span class="nav-label">${t.label}</span>
+    </div>`).join('');
+}
+
+function renderCurrentTab(){renderTab(activeTab,true);}
+
+window.renderTab=function(id,silent=false){
+  activeTab=id;
+  if(!silent)buildNav();
+  destroyCharts();
+  const c=document.getElementById('tab-content');
+  if(id==='dashboard')renderDashboard(c);
+  else if(id==='entry')renderEntry(c);
+  else if(id==='log')renderLog(c,appData);
+  else if(id==='mylog')renderLog(c,appData.filter(r=>r.submittedBy===currentUser.username));
+  else if(id==='monthly')renderMonthly(c);
+  else if(id==='annual')renderAnnual(c);
+};
+
+// ── Dashboard ──
+function renderDashboard(c){
+  const latest={};
+  UNIT_KEYS.forEach(uk=>{const rows=[...appData].filter(r=>r.unit===uk).sort((a,b)=>b.date?.localeCompare(b.date));if(rows.length)latest[uk]=rows[0];});
+  const totalN=Object.values(latest).reduce((s,r)=>s+(r.nurses||0),0);
+  const totalP=Object.values(latest).reduce((s,r)=>s+(r.patients||0),0);
+  const critU=UNIT_KEYS.filter(uk=>latest[uk]&&ratioStatus(uk,latest[uk].nurses,latest[uk].patients)==='crit').length;
+  const warnU=UNIT_KEYS.filter(uk=>latest[uk]&&ratioStatus(uk,latest[uk].nurses,latest[uk].patients)==='warn').length;
+
+  let alertHtml='';
+  if(Object.keys(latest).length===0)alertHtml=`<div class="alert alert-info"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>No entries yet. Staff can add entries from their devices.</div>`;
+  else if(critU>0)alertHtml=`<div class="alert alert-crit"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${critU} unit${critU>1?'s':''} in critical ratio — immediate reallocation needed</div>`;
+  else if(warnU>0)alertHtml=`<div class="alert alert-warn"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${warnU} unit${warnU>1?'s':''} stretched — consider staff reallocation</div>`;
+  else alertHtml=`<div class="alert alert-ok"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>All units within recommended staffing ratios</div>`;
+
+  const syncStatus=demoMode?'<span style="font-size:12px;color:var(--amber-600)">⚠ Demo mode — not synced</span>':'<span style="font-size:12px;color:var(--green-700)"><span class="sync-dot"></span>Live sync on</span>';
+
+  const unitCards=UNIT_KEYS.map(uk=>{
+    const r=latest[uk];
+    if(!r)return `<div class="unit-card"><div class="unit-header"><div><div class="unit-name">${UNIT_LABELS[uk]}</div></div><span class="status-pill pill-gray">No data</span></div><div class="empty" style="padding:16px 0 4px">No entries logged yet</div></div>`;
+    const st=ratioStatus(uk,r.nurses,r.patients);
+    const ratio=(r.patients/r.nurses);
+    const rec=RECOMMENDED[uk];
+    const pct=Math.min(100,Math.round(ratio/rec*100));
+    const fillColor=st==='ok'?'var(--green-600)':st==='warn'?'var(--amber-400)':'var(--red-400)';
+    return `<div class="unit-card">
+      <div class="unit-header">
+        <div><div class="unit-name">${UNIT_LABELS[uk]}</div><div class="unit-date">${r.date} · ${r.shift||''}</div></div>
+        <span class="status-pill ${pillClass(st)}">${statusLabel(st)}</span>
+      </div>
+      <div class="unit-stats">
+        <div class="stat-row"><span class="stat-label">Nurses on duty</span><span class="stat-val">${r.nurses}</span></div>
+        <div class="stat-row"><span class="stat-label">Patients</span><span class="stat-val">${r.patients}</span></div>
+        <div class="stat-row"><span class="stat-label">Current ratio</span><span class="stat-val ${valClass(st)}">1 : ${ratio.toFixed(1)}</span></div>
+        <div class="stat-row"><span class="stat-label">Recommended</span><span class="stat-val" style="color:var(--gray-600)">1 : ${rec}</span></div>
+      </div>
+      <div class="ratio-track"><div class="ratio-fill" style="width:${pct}%;background:${fillColor}"></div></div>
+    </div>`;
+  }).join('');
+
+  c.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:8px">
+      <h1 class="page-title">Dashboard</h1>${syncStatus}
+    </div>
+    <p class="page-sub">Live staffing overview — all units</p>
+    ${alertHtml}
+    <div class="metrics">
+      <div class="metric"><div class="metric-label">Nurses on duty</div><div class="metric-value">${totalN}</div><div class="metric-sub">across all units</div></div>
+      <div class="metric"><div class="metric-label">Total patients</div><div class="metric-value">${totalP}</div><div class="metric-sub">across all units</div></div>
+      <div class="metric ${critU>0?'metric-red':''}"><div class="metric-label">Critical units</div><div class="metric-value">${critU}</div><div class="metric-sub">${critU>0?'Need attention':'All clear'}</div></div>
+      <div class="metric"><div class="metric-label">Total entries</div><div class="metric-value">${appData.length}</div><div class="metric-sub">all time</div></div>
+    </div>
+    <div class="units-grid">${unitCards}</div>
+    <div class="chart-card">
+      <div class="chart-title">Staff vs patient load</div>
+      <div class="chart-sub">Latest entry per unit</div>
+      <div class="chart-legend">
+        <span class="legend-item"><span class="swatch" style="background:#378ADD"></span>Nurses</span>
+        <span class="legend-item"><span class="swatch" style="background:#D85A30"></span>Patients</span>
+      </div>
+      <div style="position:relative;height:200px"><canvas id="dash-chart" role="img" aria-label="Nurses vs patients per unit">Bar chart of staff vs patients by unit.</canvas></div>
+    </div>`;
+
+  setTimeout(()=>{
+    const el=document.getElementById('dash-chart');if(!el)return;
+    charts['dash']=new Chart(el,{
+      type:'bar',
+      data:{labels:UNIT_KEYS.map(uk=>UNIT_LABELS[uk].replace(' / ','/')),
+        datasets:[
+          {label:'Nurses',data:UNIT_KEYS.map(uk=>latest[uk]?.nurses||0),backgroundColor:'rgba(55,138,221,0.8)',borderRadius:4},
+          {label:'Patients',data:UNIT_KEYS.map(uk=>latest[uk]?.patients||0),backgroundColor:'rgba(216,90,48,0.8)',borderRadius:4}
+        ]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{autoSkip:false}},y:{beginAtZero:true,ticks:{stepSize:1}}}}
+    });
+  },80);
+}
+
+// ── Entry form ──
+function renderEntry(c){
+  const isHead=currentUser.role==='head';
+  const unitOpts=isHead?UNIT_KEYS.map(uk=>`<option value="${uk}">${UNIT_LABELS[uk]}</option>`).join('')
+    :`<option value="${currentUser.role}">${currentUser.unit}</option>`;
+
+  c.innerHTML=`
+    <h1 class="page-title">Add entry</h1>
+    <p class="page-sub">Record shift staffing numbers for your unit</p>
+    <div class="form-section">
+      <div class="form-section-title">Entry details</div>
+      <div class="form-grid">
+        <div class="form-row"><label>Unit</label><select id="e-unit">${unitOpts}</select></div>
+        <div class="form-row"><label>Date</label><input type="date" id="e-date" value="${today()}" max="${today()}"/></div>
+        <div class="form-row"><label>Shift</label>
+          <select id="e-shift">
+            <option value="morning">Morning (6am – 2pm)</option>
+            <option value="afternoon">Afternoon (2pm – 10pm)</option>
+            <option value="night">Night (10pm – 6am)</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Your name (optional)</label><input type="text" id="e-staffname" placeholder="Nurse / midwife name"/></div>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Staffing numbers</div>
+      <div class="form-grid">
+        <div class="form-row"><label>Nurses on duty</label><input type="number" id="e-nurses" min="1" max="99" value="4" inputmode="numeric"/></div>
+        <div class="form-row"><label>Patients</label><input type="number" id="e-patients" min="0" max="999" value="12" inputmode="numeric"/></div>
+        <div class="form-row full"><label>Notes (optional)</label><textarea id="e-note" placeholder="Any remarks about the staffing situation…"></textarea></div>
+      </div>
+      <div id="ratio-preview" class="ratio-preview"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-green" onclick="submitEntry()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save entry
+      </button>
+    </div>
+    <div id="e-success" class="alert alert-ok" style="display:none;margin-top:12px">
+      <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      Entry saved successfully and synced.
+    </div>`;
+
+  const updatePreview=()=>{
+    const nurses=parseInt(document.getElementById('e-nurses').value)||0;
+    const patients=parseInt(document.getElementById('e-patients').value)||0;
+    const uk=document.getElementById('e-unit').value;
+    const prev=document.getElementById('ratio-preview');
+    if(!nurses||nurses<1){prev.style.display='none';return;}
+    const ratio=patients/nurses;
+    const st=ratioStatus(uk,nurses,patients);
+    const rec=RECOMMENDED[uk];
+    prev.className=`ratio-preview alert ${st==='ok'?'alert-ok':st==='warn'?'alert-warn':'alert-crit'}`;
+    prev.style.display='flex';
+    prev.innerHTML=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Ratio: 1 : ${ratio.toFixed(1)} — Recommended 1 : ${rec} — <strong>${statusLabel(st)}</strong>`;
+  };
+  ['e-nurses','e-patients','e-unit'].forEach(id=>document.getElementById(id)?.addEventListener('input',updatePreview));
+  updatePreview();
+}
+
+window.submitEntry=async function(){
+  const nurses=parseInt(document.getElementById('e-nurses').value)||0;
+  const patients=parseInt(document.getElementById('e-patients').value)||0;
+  const uk=document.getElementById('e-unit').value;
+  const date=document.getElementById('e-date').value;
+  const shift=document.getElementById('e-shift').value;
+  const note=document.getElementById('e-note').value.trim();
+  const staffName=document.getElementById('e-staffname').value.trim();
+  if(!nurses||nurses<1){alert('Please enter a valid number of nurses.');return;}
+  if(!date){alert('Please select a date.');return;}
+  const entry={unit:uk,date,nurses,patients,shift,submittedBy:currentUser.username+(staffName?' ('+staffName+')':''),submittedAt:new Date().toISOString(),note};
+  const btn=document.querySelector('.form-actions .btn-green');
+  btn.textContent='Saving…';btn.disabled=true;
+  try{
+    await addEntry(entry);
+    document.getElementById('e-success').style.display='flex';
+    setTimeout(()=>{document.getElementById('e-success').style.display='none';},3000);
+    document.getElementById('e-nurses').value='4';
+    document.getElementById('e-patients').value='12';
+    document.getElementById('e-note').value='';
+    document.getElementById('e-staffname').value='';
+  }catch(e){alert('Save failed: '+e.message);}
+  btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save entry';
+  btn.disabled=false;
+};
+
+// ── Log ──
+function renderLog(c,rows){
+  const sorted=[...rows].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const isHead=currentUser.role==='head';
+
+  const tableRows=!sorted.length
+    ?`<tr><td colspan="9"><div class="empty"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>No entries found</div></td></tr>`
+    :sorted.map(r=>{
+      const st=ratioStatus(r.unit,r.nurses,r.patients);
+      const ratio=r.nurses>0?(r.patients/r.nurses).toFixed(1):'—';
+      const delBtn=isHead
+        ?`<td><button class="del-btn" onclick="deleteEntry('${r.id}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            Delete
+          </button></td>`
+        :`<td style="font-size:11px;color:var(--gray-600)">${r.submittedBy||'—'}</td>`;
+      return `<tr>
+        <td style="white-space:nowrap">${r.date||'—'}</td>
+        <td><span class="tag tag-gray" style="font-size:11px;white-space:nowrap">${UNIT_LABELS[r.unit]||r.unit}</span></td>
+        <td style="white-space:nowrap">${r.shift||'—'}</td>
+        <td style="font-weight:600">${r.nurses}</td>
+        <td style="font-weight:600">${r.patients}</td>
+        <td class="${valClass(st)}" style="font-weight:700;font-family:var(--mono)">${ratio}</td>
+        <td><span class="status-pill ${pillClass(st)}" style="font-size:11px;white-space:nowrap">${statusLabel(st)}</span></td>
+        <td style="font-size:11px;color:var(--gray-600);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.note||''}</td>
+        ${delBtn}
+      </tr>`;
+    }).join('');
+
+  const exportBar=isHead?`
+    <div class="export-bar">
+      <span class="export-bar-title">Export all records:</span>
+      <button class="btn-excel" onclick="exportExcel()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Export to Excel
+      </button>
+      <button class="btn-pdf" onclick="exportPDF()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Export to PDF
+      </button>
+    </div>`:'';
+
+  c.innerHTML=`
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px">
+      <div>
+        <h1 class="page-title">${isHead?'All records':'My records'}</h1>
+        <p class="page-sub" style="margin-bottom:0">${sorted.length} entries logged</p>
+      </div>
+    </div>
+    <div style="height:12px"></div>
+    ${exportBar}
+    <div class="table-wrap">
+      <table class="data-table" id="records-table">
+        <thead><tr>
+          <th>Date</th><th>Unit</th><th>Shift</th><th>Nurses</th><th>Patients</th>
+          <th>Ratio</th><th>Status</th><th>Notes</th><th>${isHead?'Action':'By'}</th>
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>`;
+}
+
+// ── Export to Excel ──
+window.exportExcel=function(){
+  const sorted=[...appData].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const wsData=[
+    ['Tema Urban Hospital — Staff to Patient Ratio Report'],
+    [`Generated: ${new Date().toLocaleString('en-GB')}`],
+    [],
+    ['Date','Unit','Shift','Nurses on Duty','Patients','Ratio (Patients/Nurse)','Status','Submitted By','Notes']
+  ];
+  sorted.forEach(r=>{
+    const st=ratioStatus(r.unit,r.nurses,r.patients);
+    const ratio=r.nurses>0?+(r.patients/r.nurses).toFixed(2):0;
+    wsData.push([r.date||'',UNIT_LABELS[r.unit]||r.unit,r.shift||'',r.nurses,r.patients,ratio,statusLabel(st),r.submittedBy||'',r.note||'']);
+  });
+
+  // Summary sheet
+  const summaryData=[
+    ['Tema Urban Hospital — Staffing Summary'],
+    [`Generated: ${new Date().toLocaleString('en-GB')}`],
+    [],
+    ['Unit','Total Entries','Avg Nurses','Avg Patients','Avg Ratio','Adequate Shifts (%)'],
+  ];
+  UNIT_KEYS.forEach(uk=>{
+    const rows=appData.filter(r=>r.unit===uk);
+    if(!rows.length){summaryData.push([UNIT_LABELS[uk],0,'—','—','—','—']);return;}
+    const an=(rows.reduce((s,r)=>s+r.nurses,0)/rows.length).toFixed(1);
+    const ap=(rows.reduce((s,r)=>s+r.patients,0)/rows.length).toFixed(1);
+    const ratio=(parseFloat(ap)/parseFloat(an)).toFixed(2);
+    const okPct=Math.round(rows.filter(r=>ratioStatus(r.unit,r.nurses,r.patients)==='ok').length/rows.length*100);
+    summaryData.push([UNIT_LABELS[uk],rows.length,parseFloat(an),parseFloat(ap),parseFloat(ratio),okPct+'%']);
+  });
+
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols']=[{wch:12},{wch:22},{wch:12},{wch:14},{wch:10},{wch:22},{wch:12},{wch:20},{wch:30}];
+  // Bold header style rows
+  ['A1','A4'].forEach(ref=>{if(ws[ref])ws[ref].s={font:{bold:true}}});
+  XLSX.utils.book_append_sheet(wb,ws,'All Records');
+
+  const ws2=XLSX.utils.aoa_to_sheet(summaryData);
+  ws2['!cols']=[{wch:22},{wch:14},{wch:12},{wch:14},{wch:12},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,ws2,'Summary');
+
+  const yr=new Date().getFullYear();
+  const monthSheet=[['Month',...UNIT_KEYS.map(uk=>UNIT_LABELS[uk]+' Ratio'),...UNIT_KEYS.map(uk=>UNIT_LABELS[uk]+' Entries')]];
+  for(let m=0;m<12;m++){
+    const row=[['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m]];
+    UNIT_KEYS.forEach(uk=>{
+      const rows=appData.filter(r=>r.unit===uk&&r.date?.startsWith(`${yr}-${String(m+1).padStart(2,'0')}`));
+      if(!rows.length){row.push('—');}
+      else{const an=rows.reduce((s,r)=>s+r.nurses,0)/rows.length;const ap=rows.reduce((s,r)=>s+r.patients,0)/rows.length;row.push(+(ap/an).toFixed(2));}
+    });
+    UNIT_KEYS.forEach(uk=>{
+      const rows=appData.filter(r=>r.unit===uk&&r.date?.startsWith(`${yr}-${String(m+1).padStart(2,'0')}`));
+      row.push(rows.length||0);
+    });
+    monthSheet.push(row);
+  }
+  const ws3=XLSX.utils.aoa_to_sheet(monthSheet);
+  ws3['!cols']=[{wch:10},...UNIT_KEYS.map(()=>({wch:20})),...UNIT_KEYS.map(()=>({wch:18}))];
+  XLSX.utils.book_append_sheet(wb,ws3,`Monthly ${yr}`);
+
+  XLSX.writeFile(wb,`TemaHospital_StaffRatio_${new Date().toISOString().slice(0,10)}.xlsx`);
+};
+
+// ── Export to PDF ──
+window.exportPDF=function(){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+  const GREEN=[15,110,86];const DARK=[26,26,26];const GRAY=[95,94,90];
+
+  // Header
+  doc.setFillColor(...GREEN);
+  doc.rect(0,0,297,18,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(13);doc.setFont('helvetica','bold');
+  doc.text('Tema Urban Hospital — Staff to Patient Ratio Report',14,11);
+  doc.setFontSize(8);doc.setFont('helvetica','normal');
+  doc.text(`Generated: ${new Date().toLocaleString('en-GB')}  |  Head of Nursing & Midwifery`,14,15.5);
+
+  // Summary boxes
+  const totN=appData.reduce((s,r)=>s+r.nurses,0);
+  const totP=appData.reduce((s,r)=>s+r.patients,0);
+  const okPct=appData.length?Math.round(appData.filter(r=>ratioStatus(r.unit,r.nurses,r.patients)==='ok').length/appData.length*100):0;
+  const boxes=[['Total Entries',appData.length],['Total Nurses (all)',totN],['Total Patients (all)',totP],['Adequate Shifts',okPct+'%']];
+  boxes.forEach((b,i)=>{
+    const x=14+i*68;
+    doc.setFillColor(232,248,242);doc.roundedRect(x,21,63,14,2,2,'F');
+    doc.setTextColor(...GRAY);doc.setFontSize(7);doc.setFont('helvetica','normal');
+    doc.text(b[0],x+3,27);
+    doc.setTextColor(...DARK);doc.setFontSize(13);doc.setFont('helvetica','bold');
+    doc.text(String(b[1]),x+3,33);
+  });
+
+  // Unit summary table
+  doc.setTextColor(...DARK);doc.setFontSize(10);doc.setFont('helvetica','bold');
+  doc.text('Unit Summary',14,43);
+  doc.autoTable({
+    startY:46,
+    head:[['Unit','Total Entries','Avg Nurses','Avg Patients','Avg Ratio','Adequate %','Recommended']],
+    body:UNIT_KEYS.map(uk=>{
+      const rows=appData.filter(r=>r.unit===uk);
+      if(!rows.length)return[UNIT_LABELS[uk],0,'—','—','—','—','1:'+RECOMMENDED[uk]];
+      const an=(rows.reduce((s,r)=>s+r.nurses,0)/rows.length).toFixed(1);
+      const ap=(rows.reduce((s,r)=>s+r.patients,0)/rows.length).toFixed(1);
+      const ratio=(parseFloat(ap)/parseFloat(an)).toFixed(2);
+      const pct=Math.round(rows.filter(r=>ratioStatus(r.unit,r.nurses,r.patients)==='ok').length/rows.length*100);
+      return[UNIT_LABELS[uk],rows.length,an,ap,ratio,pct+'%','1:'+RECOMMENDED[uk]];
+    }),
+    styles:{fontSize:9,cellPadding:3},
+    headStyles:{fillColor:GREEN,textColor:[255,255,255],fontStyle:'bold'},
+    alternateRowStyles:{fillColor:[247,246,241]},
+    margin:{left:14,right:14},
+  });
+
+  // All records table
+  const sorted=[...appData].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(...DARK);
+  const afterSummary=doc.lastAutoTable.finalY+8;
+  doc.text('All Entries',14,afterSummary);
+  doc.autoTable({
+    startY:afterSummary+3,
+    head:[['Date','Unit','Shift','Nurses','Patients','Ratio','Status','Submitted By']],
+    body:sorted.map(r=>{
+      const st=ratioStatus(r.unit,r.nurses,r.patients);
+      const ratio=r.nurses>0?(r.patients/r.nurses).toFixed(1):'—';
+      return[r.date||'—',UNIT_LABELS[r.unit]||r.unit,r.shift||'—',r.nurses,r.patients,ratio,statusLabel(st),r.submittedBy||'—'];
+    }),
+    styles:{fontSize:8,cellPadding:2.5},
+    headStyles:{fillColor:GREEN,textColor:[255,255,255],fontStyle:'bold'},
+    alternateRowStyles:{fillColor:[247,246,241]},
+    columnStyles:{5:{fontStyle:'bold'},6:{fontStyle:'bold'}},
+    didParseCell:(data)=>{
+      if(data.section==='body'&&data.column.index===6){
+        const v=data.cell.raw;
+        if(v==='Critical')data.cell.styles.textColor=[163,45,45];
+        else if(v==='Stretched')data.cell.styles.textColor=[186,117,23];
+        else if(v==='Adequate')data.cell.styles.textColor=[15,110,86];
+      }
+    },
+    margin:{left:14,right:14},
+  });
+
+  // Footer on each page
+  const pageCount=doc.internal.getNumberOfPages();
+  for(let i=1;i<=pageCount;i++){
+    doc.setPage(i);
+    doc.setFontSize(7);doc.setTextColor(...GRAY);doc.setFont('helvetica','normal');
+    doc.text(`Page ${i} of ${pageCount}  |  Tema Urban Hospital — Confidential`,14,doc.internal.pageSize.height-5);
+    doc.text('Nursing & Midwifery Unit',doc.internal.pageSize.width-14,doc.internal.pageSize.height-5,{align:'right'});
+  }
+
+  doc.save(`TemaHospital_StaffRatio_${new Date().toISOString().slice(0,10)}.pdf`);
+};
+
+// ── Monthly ──
+function renderMonthly(c){
+  const yr=new Date().getFullYear();
+  c.innerHTML=`
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px">
+      <div><h1 class="page-title">Monthly projection</h1><p class="page-sub" style="margin-bottom:0">Staff-to-patient ratios by month</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:4px">
+        <button class="btn-excel" onclick="exportExcel()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Excel</button>
+        <button class="btn-pdf" onclick="exportPDF()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>PDF</button>
+      </div>
+    </div>
+    <div style="height:12px"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+      <div class="form-row" style="margin:0;min-width:120px">
+        <label style="font-size:12px;font-weight:500;color:var(--gray-700)">Year</label>
+        <select id="f-year" onchange="updateMonthly()" style="padding:8px 32px 8px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--gray-900);font-size:13px;appearance:none;-webkit-appearance:none;background-image:url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%228%22 viewBox=%220 0 12 8%22%3E%3Cpath d=%22M1 1l5 5 5-5%22 stroke=%22%23888780%22 stroke-width=%221.5%22 fill=%22none%22 stroke-linecap=%22round%22/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 10px center">
+          ${[yr-1,yr,yr+1].map(y=>`<option value="${y}" ${y===yr?'selected':''}>${y}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    ${UNIT_KEYS.map((uk,i)=>`
+    <div class="chart-card">
+      <div class="chart-title">${UNIT_LABELS[uk]}</div>
+      <div class="chart-sub">Monthly avg nurses &amp; patients — recommended limit shown</div>
+      <div class="chart-legend">
+        <span class="legend-item"><span class="swatch" style="background:${CHART_COLORS[i]}"></span>Nurses</span>
+        <span class="legend-item"><span class="swatch" style="background:${CHART_COLORS[i]};opacity:.4"></span>Patients</span>
+        <span class="legend-item"><span class="swatch-line" style="background:var(--green-600)"></span>Recommended limit</span>
+      </div>
+      <div style="position:relative;height:180px"><canvas id="mc-${uk}" role="img" aria-label="Monthly chart ${UNIT_LABELS[uk]}">${UNIT_LABELS[uk]} monthly data.</canvas></div>
+    </div>`).join('')}
+    <div class="chart-card">
+      <div class="chart-title">Monthly summary table</div>
+      <div id="monthly-tbl" style="overflow-x:auto"></div>
+    </div>`;
+  setTimeout(()=>updateMonthly(),80);
+}
+
+window.updateMonthly=function(){
+  const yr=parseInt(document.getElementById('f-year')?.value||new Date().getFullYear());
+  UNIT_KEYS.forEach((uk,i)=>{
+    const mN=MONTHS.map((_,m)=>{const rows=appData.filter(r=>r.unit===uk&&r.date?.startsWith(`${yr}-${String(m+1).padStart(2,'0')}`));return rows.length?+(rows.reduce((s,r)=>s+r.nurses,0)/rows.length).toFixed(1):null;});
+    const mP=MONTHS.map((_,m)=>{const rows=appData.filter(r=>r.unit===uk&&r.date?.startsWith(`${yr}-${String(m+1).padStart(2,'0')}`));return rows.length?+(rows.reduce((s,r)=>s+r.patients,0)/rows.length).toFixed(1):null;});
+    const rec=RECOMMENDED[uk];
+    const id='mc-'+uk;
+    if(charts[id])try{charts[id].destroy();}catch{}
+    const el=document.getElementById(id);if(!el)return;
+    const col=CHART_COLORS[i];
+    charts[id]=new Chart(el,{
+      type:'bar',
+      data:{labels:MONTHS,datasets:[
+        {label:'Nurses',data:mN,backgroundColor:col+'cc',borderRadius:3,order:2},
+        {label:'Patients',data:mP,backgroundColor:col+'55',borderRadius:3,order:2},
+        {label:'Recommended',data:Array(12).fill(rec),type:'line',borderColor:'#1D9E75',borderDash:[4,3],borderWidth:2,pointRadius:0,fill:false,order:1}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{autoSkip:false,maxRotation:0,font:{size:11}}},y:{beginAtZero:true}}}
+    });
+  });
+  const tbl=document.getElementById('monthly-tbl');if(!tbl)return;
+  const rows=MONTHS.map((mn,m)=>{
+    const cells=UNIT_KEYS.map(uk=>{
+      const entries=appData.filter(r=>r.unit===uk&&r.date?.startsWith(`${new Date().getFullYear()}-${String(m+1).padStart(2,'0')}`));
+      if(!entries.length)return '<td style="color:var(--gray-400)">—</td>';
+      const an=entries.reduce((s,r)=>s+r.nurses,0)/entries.length;
+      const ap=entries.reduce((s,r)=>s+r.patients,0)/entries.length;
+      const ratio=ap/an;
+      const st=ratioStatus(uk,an,ap);
+      return `<td class="${valClass(st)}" style="font-weight:600">${ratio.toFixed(1)} <span style="font-size:11px;color:var(--gray-600);font-weight:400">(${entries.length})</span></td>`;
+    }).join('');
+    return `<tr><td style="font-weight:500;color:var(--gray-700)">${mn}</td>${cells}</tr>`;
+  }).join('');
+  tbl.innerHTML=`<table class="proj-table" style="min-width:380px"><thead><tr><th>Month</th>${UNIT_KEYS.map(uk=>`<th>${UNIT_LABELS[uk]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+};
+
+// ── Annual ──
+function renderAnnual(c){
+  const yr=new Date().getFullYear();
+  const totalE=appData.length;
+  const allRatios=appData.filter(r=>r.nurses>0).map(r=>r.patients/r.nurses);
+  const avgR=allRatios.length?(allRatios.reduce((a,b)=>a+b,0)/allRatios.length).toFixed(1):0;
+  const okPct=appData.length?Math.round(appData.filter(r=>ratioStatus(r.unit,r.nurses,r.patients)==='ok').length/appData.length*100):0;
+
+  c.innerHTML=`
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px">
+      <div><h1 class="page-title">Annual projection</h1><p class="page-sub" style="margin-bottom:0">Year-on-year staffing trends</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:4px">
+        <button class="btn-excel" onclick="exportExcel()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Excel</button>
+        <button class="btn-pdf" onclick="exportPDF()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>PDF</button>
+      </div>
+    </div>
+    <div style="height:12px"></div>
+    <div class="metrics" style="margin-bottom:16px">
+      <div class="metric"><div class="metric-label">Total entries</div><div class="metric-value">${totalE}</div></div>
+      <div class="metric"><div class="metric-label">Avg ratio</div><div class="metric-value">${avgR}</div><div class="metric-sub">patients per nurse</div></div>
+      <div class="metric ${okPct>=70?'metric-green':'metric-amber'}"><div class="metric-label">Adequate shifts</div><div class="metric-value">${okPct}%</div></div>
+      <div class="metric"><div class="metric-label">Current year</div><div class="metric-value">${yr}</div></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Annual avg patient load per nurse</div>
+      <div class="chart-sub">Across years — all units compared</div>
+      <div class="chart-legend">
+        ${UNIT_KEYS.map((uk,i)=>`<span class="legend-item"><span class="swatch" style="background:${CHART_COLORS[i]}"></span>${UNIT_LABELS[uk]}</span>`).join('')}
+      </div>
+      <div style="position:relative;height:240px"><canvas id="ann-chart" role="img" aria-label="Annual ratio comparison">Annual ratios chart.</canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Annual summary</div>
+      <div id="ann-tbl" style="overflow-x:auto"></div>
+    </div>`;
+
+  setTimeout(()=>{
+    const years=[yr-2,yr-1,yr];
+    const el=document.getElementById('ann-chart');if(!el)return;
+    charts['annual']=new Chart(el,{
+      type:'bar',
+      data:{labels:years.map(String),datasets:UNIT_KEYS.map((uk,i)=>({
+        label:UNIT_LABELS[uk],
+        data:years.map(y=>{
+          const rows=appData.filter(r=>r.unit===uk&&r.date?.startsWith(y.toString()));
+          if(!rows.length)return null;
+          const an=rows.reduce((s,r)=>s+r.nurses,0)/rows.length;
+          const ap=rows.reduce((s,r)=>s+r.patients,0)/rows.length;
+          return +(ap/an).toFixed(1);
+        }),
+        backgroundColor:CHART_COLORS[i]+'cc',borderRadius:5
+      }))},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{autoSkip:false}},y:{beginAtZero:true,title:{display:true,text:'Patients per nurse',font:{size:11}}}}}
+    });
+
+    const annTbl=document.getElementById('ann-tbl');if(!annTbl)return;
+    const rows=years.map(y=>{
+      const cells=UNIT_KEYS.map(uk=>{
+        const rows=appData.filter(r=>r.unit===uk&&r.date?.startsWith(y.toString()));
+        if(!rows.length)return '<td style="color:var(--gray-400)">No data</td>';
+        const an=rows.reduce((s,r)=>s+r.nurses,0)/rows.length;
+        const ap=rows.reduce((s,r)=>s+r.patients,0)/rows.length;
+        const ratio=ap/an;const st=ratioStatus(uk,an,ap);
+        const adequate=rows.filter(r=>ratioStatus(r.unit,r.nurses,r.patients)==='ok').length;
+        return `<td><span class="${valClass(st)}" style="font-weight:600">${ratio.toFixed(1)}</span> <span style="font-size:11px;color:var(--gray-600)">${Math.round(adequate/rows.length*100)}% adequate</span></td>`;
+      }).join('');
+      return `<tr><td style="font-weight:500">${y}</td>${cells}</tr>`;
+    }).join('');
+    annTbl.innerHTML=`<table class="proj-table" style="min-width:420px"><thead><tr><th>Year</th>${UNIT_KEYS.map(uk=>`<th>${UNIT_LABELS[uk]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+  },80);
+}
+
+// ── Boot ──
+(function(){
+  if(localStorage.getItem('tuh_demo')==='1'){demoMode=true;seedDemo();showScreen('login');return;}
+  const cfg=loadConfig();
+  if(cfg&&cfg.apiKey)initFirebase(cfg);
+  else showScreen('setup');
+})();
+})(); // end async IIFE
+</script>
+</body>
+</html>
