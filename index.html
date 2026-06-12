@@ -358,7 +358,7 @@ a{color:var(--green-700);text-decoration:none}
 <script>
 (async function(){
 const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
-const { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+const { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
 
 // ── Constants ──
 const USERS = {
@@ -376,7 +376,7 @@ const LOGO_DATA_URI='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAIAA
 
 let db=null, unsubscribe=null, appData=[], currentUser=null, demoMode=false;
 let charts={};
-let pendingResolveUnit=null;
+let pendingResolveEntry=null;
 let dashboardShiftFilter='all';
 
 // ── Firebase init ──
@@ -466,6 +466,16 @@ async function addEntry(entry){
   await addDoc(collection(db,'entries'),{...entry,submittedAt:serverTimestamp()});
 }
 
+async function updateEntry(id,entry){
+  if(demoMode){
+    const idx=appData.findIndex(r=>r.id===id);
+    if(idx>-1)appData[idx]={...appData[idx],...entry};
+    renderCurrentTab();
+    return;
+  }
+  await updateDoc(doc(db,'entries',id),entry);
+}
+
 window.deleteEntry=async function(id){
   if(!confirm('Delete this entry?'))return;
   if(demoMode){appData=appData.filter(r=>r.id!==id);renderCurrentTab();return;}
@@ -505,9 +515,17 @@ window.renderTab=function(id,silent=false){
   else if(id==='annual')renderAnnual(c);
 };
 
-// Jump to the Add Entry form, pre-selecting the unit that needs reallocation
+// Jump to the Add Entry form, pre-filled with the exact record causing the alert, for editing
 window.resolveUnit=function(unitKey){
-  pendingResolveUnit=unitKey;
+  let rows=[...appData].filter(r=>r.unit===unitKey);
+  if(dashboardShiftFilter!=='all')rows=rows.filter(r=>r.shift===dashboardShiftFilter);
+  rows=rows.sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.submittedAt?.toString()||'').localeCompare(a.submittedAt?.toString()||''));
+  const record=rows[0];
+  if(!record){
+    pendingResolveEntry={unit:unitKey};
+  }else{
+    pendingResolveEntry=record;
+  }
   window.renderTab('entry');
 };
 
@@ -631,29 +649,40 @@ function renderDashboard(c){
 // ── Entry form ──
 function renderEntry(c){
   const isHead=currentUser.role==='head';
+  const editRecord=(isHead&&pendingResolveEntry)?pendingResolveEntry:null;
+  const editUnit=editRecord?editRecord.unit:null;
+  const isEdit=!!(editRecord&&editRecord.id);
+
   const unitOpts=isHead?UNIT_KEYS.map(uk=>`<option value="${uk}">${UNIT_LABELS[uk]}</option>`).join('')
     :`<option value="${currentUser.role}">${currentUser.unit}</option>`;
 
-  const resolveNotice=(isHead&&pendingResolveUnit)?`
+  const resolveNotice=editRecord?`
     <div class="alert alert-warn" style="margin-bottom:14px">
       <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      <span class="alert-text">Resolving staffing for <strong>${UNIT_LABELS[pendingResolveUnit]}</strong> — log an updated entry below to reflect reallocated staff.</span>
+      <span class="alert-text">${isEdit?`Editing the entry that triggered this alert for <strong>${UNIT_LABELS[editUnit]}</strong> (${editRecord.date} · ${editRecord.shift||''}). Update the numbers below and save to resolve.`:`No existing entry found for <strong>${UNIT_LABELS[editUnit]}</strong> — log a new entry below to reflect the current staffing.`}</span>
     </div>`:'';
 
+  const dNurses=editRecord?.nurses??4;
+  const dPatients=editRecord?.patients??12;
+  const dDate=editRecord?.date||today();
+  const dShift=editRecord?.shift||'morning';
+  const dNote=editRecord?.note||'';
+  const dUnit=editUnit;
+
   c.innerHTML=`
-    <h1 class="page-title">Add entry</h1>
-    <p class="page-sub">Record shift staffing numbers for your unit</p>
+    <h1 class="page-title">${isEdit?'Edit entry':'Add entry'}</h1>
+    <p class="page-sub">${isEdit?'Update the staffing numbers for this shift to resolve the alert':'Record shift staffing numbers for your unit'}</p>
     ${resolveNotice}
     <div class="form-section">
       <div class="form-section-title">Entry details</div>
       <div class="form-grid">
-        <div class="form-row"><label>Unit</label><select id="e-unit">${unitOpts}</select></div>
-        <div class="form-row"><label>Date</label><input type="date" id="e-date" value="${today()}" max="${today()}"/></div>
+        <div class="form-row"><label>Unit</label><select id="e-unit" ${isEdit?'disabled':''}>${unitOpts}</select></div>
+        <div class="form-row"><label>Date</label><input type="date" id="e-date" value="${dDate}" max="${today()}"/></div>
         <div class="form-row"><label>Shift</label>
           <select id="e-shift">
-            <option value="morning">Morning (6am – 2pm)</option>
-            <option value="afternoon">Afternoon (2pm – 10pm)</option>
-            <option value="night">Night (10pm – 6am)</option>
+            <option value="morning" ${dShift==='morning'?'selected':''}>Morning (6am – 2pm)</option>
+            <option value="afternoon" ${dShift==='afternoon'?'selected':''}>Afternoon (2pm – 10pm)</option>
+            <option value="night" ${dShift==='night'?'selected':''}>Night (10pm – 6am)</option>
           </select>
         </div>
         <div class="form-row"><label>Your name (optional)</label><input type="text" id="e-staffname" placeholder="Nurse / midwife name"/></div>
@@ -662,28 +691,32 @@ function renderEntry(c){
     <div class="form-section">
       <div class="form-section-title">Staffing numbers</div>
       <div class="form-grid">
-        <div class="form-row"><label>Nurses on duty</label><input type="number" id="e-nurses" min="1" max="99" value="4" inputmode="numeric"/></div>
-        <div class="form-row"><label>Patients</label><input type="number" id="e-patients" min="0" max="999" value="12" inputmode="numeric"/></div>
-        <div class="form-row full"><label>Notes (optional)</label><textarea id="e-note" placeholder="Any remarks about the staffing situation…"></textarea></div>
+        <div class="form-row"><label>Nurses on duty</label><input type="number" id="e-nurses" min="1" max="99" value="${dNurses}" inputmode="numeric"/></div>
+        <div class="form-row"><label>Patients</label><input type="number" id="e-patients" min="0" max="999" value="${dPatients}" inputmode="numeric"/></div>
+        <div class="form-row full"><label>Notes (optional)</label><textarea id="e-note" placeholder="Any remarks about the staffing situation…">${dNote}</textarea></div>
       </div>
       <div id="ratio-preview" class="ratio-preview"></div>
     </div>
     <div class="form-actions">
       <button class="btn btn-green" onclick="submitEntry()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        Save entry
+        ${isEdit?'Save changes':'Save entry'}
       </button>
+      ${isEdit?`<button class="btn btn-outline" onclick="cancelResolve()">Cancel</button>`:''}
     </div>
     <div id="e-success" class="alert alert-ok" style="display:none;margin-top:12px">
       <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-      Entry saved successfully and synced.
+      ${isEdit?'Entry updated successfully and synced.':'Entry saved successfully and synced.'}
     </div>`;
 
-  if(isHead&&pendingResolveUnit){
+  if(dUnit){
     const sel=document.getElementById('e-unit');
-    if(sel)sel.value=pendingResolveUnit;
-    pendingResolveUnit=null;
+    if(sel)sel.value=dUnit;
   }
+  // store edit state on the form for submitEntry to use
+  c.dataset.editId=isEdit?editRecord.id:'';
+  c.dataset.editUnit=isEdit?editUnit:'';
+  pendingResolveEntry=null;
 
   const updatePreview=()=>{
     const nurses=parseInt(document.getElementById('e-nurses').value)||0;
@@ -702,6 +735,11 @@ function renderEntry(c){
   updatePreview();
 }
 
+window.cancelResolve=function(){
+  pendingResolveEntry=null;
+  window.renderTab('dashboard');
+};
+
 window.submitEntry=async function(){
   const nurses=parseInt(document.getElementById('e-nurses').value)||0;
   const patients=parseInt(document.getElementById('e-patients').value)||0;
@@ -712,19 +750,35 @@ window.submitEntry=async function(){
   const staffName=document.getElementById('e-staffname').value.trim();
   if(!nurses||nurses<1){alert('Please enter a valid number of nurses.');return;}
   if(!date){alert('Please select a date.');return;}
-  const entry={unit:uk,date,nurses,patients,shift,submittedBy:currentUser.username+(staffName?' ('+staffName+')':''),submittedAt:new Date().toISOString(),note};
+
+  const c=document.getElementById('tab-content');
+  const editId=c.dataset.editId;
   const btn=document.querySelector('.form-actions .btn-green');
+  const originalLabel=btn.innerHTML;
   btn.textContent='Saving…';btn.disabled=true;
+
   try{
-    await addEntry(entry);
+    if(editId){
+      const updatedFields={unit:uk,date,nurses,patients,shift,note,
+        resolvedBy:currentUser.username+(staffName?' ('+staffName+')':''),
+        resolvedAt:new Date().toISOString()};
+      await updateEntry(editId,updatedFields);
+    }else{
+      const entry={unit:uk,date,nurses,patients,shift,submittedBy:currentUser.username+(staffName?' ('+staffName+')':''),submittedAt:new Date().toISOString(),note};
+      await addEntry(entry);
+    }
     document.getElementById('e-success').style.display='flex';
-    setTimeout(()=>{document.getElementById('e-success').style.display='none';},3000);
-    document.getElementById('e-nurses').value='4';
-    document.getElementById('e-patients').value='12';
-    document.getElementById('e-note').value='';
-    document.getElementById('e-staffname').value='';
+    if(editId){
+      setTimeout(()=>{window.renderTab('dashboard');},1200);
+    }else{
+      setTimeout(()=>{document.getElementById('e-success').style.display='none';},3000);
+      document.getElementById('e-nurses').value='4';
+      document.getElementById('e-patients').value='12';
+      document.getElementById('e-note').value='';
+      document.getElementById('e-staffname').value='';
+    }
   }catch(e){alert('Save failed: '+e.message);}
-  btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save entry';
+  btn.innerHTML=originalLabel;
   btn.disabled=false;
 };
 
