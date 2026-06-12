@@ -1080,10 +1080,15 @@ function renderAnnual(c){
 
 // ── Boot ──
 (function(){
-  if(localStorage.getItem('tuh_demo')==='1'){demoMode=true;seedDemo();showScreen('login');return;}
-  const cfg=loadConfig();
-  if(cfg&&cfg.apiKey)initFirebase(cfg);
-  else showScreen('setup');
+  const hardcodedCfg={
+    apiKey:"AIzaSyDKhWcsVZVeZGaRPZwmKPpgplZH0-yTOBY",
+    authDomain:"tuh-7ee17.firebaseapp.com",
+    projectId:"tuh-7ee17",
+    storageBucket:"tuh-7ee17.firebasestorage.app",
+    messagingSenderId:"927884960038",
+    appId:"1:927884960038:web:7a95bec5fc16444802e1e7"
+  };
+  initFirebase(hardcodedCfg);
 })();
 })(); // end async IIFE
 </script>
