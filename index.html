@@ -167,6 +167,16 @@ a{color:var(--green-700);text-decoration:none}
 .metric-amber .metric-value{color:var(--amber-600)}
 
 /* ── Unit cards ── */
+.shift-filter-bar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.shift-filter-label{font-size:12px;font-weight:500;color:var(--gray-600);white-space:nowrap}
+.shift-filter-group{display:flex;gap:6px;flex-wrap:wrap}
+.shift-filter-btn{
+  padding:6px 14px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;
+  border:1px solid var(--border);background:var(--surface);color:var(--gray-700);
+  font-family:var(--font);transition:all .15s;white-space:nowrap;
+}
+.shift-filter-btn:hover{background:var(--gray-100)}
+.shift-filter-btn.active{background:var(--green-700);color:#fff;border-color:var(--green-700)}
 .units-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:16px}
 @media(min-width:600px){.units-grid{grid-template-columns:repeat(3,1fr)}}
 .unit-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px}
@@ -367,6 +377,7 @@ const LOGO_DATA_URI='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAIAA
 let db=null, unsubscribe=null, appData=[], currentUser=null, demoMode=false;
 let charts={};
 let pendingResolveUnit=null;
+let dashboardShiftFilter='all';
 
 // ── Firebase init ──
 function initFirebase(cfg){
@@ -500,22 +511,35 @@ window.resolveUnit=function(unitKey){
   window.renderTab('entry');
 };
 
+// Filter the dashboard's "current status" view by shift
+window.setDashboardShift=function(shift){
+  dashboardShiftFilter=shift;
+  destroyCharts();
+  renderDashboard(document.getElementById('tab-content'));
+};
+
 // ── Dashboard ──
 function renderDashboard(c){
+  const shiftFilter=dashboardShiftFilter;
   const latest={};
-  UNIT_KEYS.forEach(uk=>{const rows=[...appData].filter(r=>r.unit===uk).sort((a,b)=>b.date?.localeCompare(b.date));if(rows.length)latest[uk]=rows[0];});
+  UNIT_KEYS.forEach(uk=>{
+    let rows=[...appData].filter(r=>r.unit===uk);
+    if(shiftFilter!=='all')rows=rows.filter(r=>r.shift===shiftFilter);
+    rows=rows.sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.submittedAt?.toString()||'').localeCompare(a.submittedAt?.toString()||''));
+    if(rows.length)latest[uk]=rows[0];
+  });
   const totalN=Object.values(latest).reduce((s,r)=>s+(r.nurses||0),0);
   const totalP=Object.values(latest).reduce((s,r)=>s+(r.patients||0),0);
   const critU=UNIT_KEYS.filter(uk=>latest[uk]&&ratioStatus(uk,latest[uk].nurses,latest[uk].patients)==='crit').length;
   const warnU=UNIT_KEYS.filter(uk=>latest[uk]&&ratioStatus(uk,latest[uk].nurses,latest[uk].patients)==='warn').length;
 
   let alertHtml='';
-  if(Object.keys(latest).length===0)alertHtml=`<div class="alert alert-info"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>No entries yet. Staff can add entries from their devices.</div>`;
+  if(Object.keys(latest).length===0)alertHtml=`<div class="alert alert-info"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>No entries${shiftFilter!=='all'?' for the '+shiftFilter+' shift':''} yet. Staff can add entries from their devices.</div>`;
   else if(critU>0){
     const critUnitKey=UNIT_KEYS.find(uk=>latest[uk]&&ratioStatus(uk,latest[uk].nurses,latest[uk].patients)==='crit');
     alertHtml=`<div class="alert alert-crit">
       <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      <span class="alert-text">${critU} unit${critU>1?'s':''} in critical ratio — immediate reallocation needed</span>
+      <span class="alert-text">${critU} unit${critU>1?'s':''} in critical ratio${shiftFilter!=='all'?' ('+shiftFilter+' shift)':''} — immediate reallocation needed</span>
       <button class="resolve-btn resolve-btn-crit" onclick="resolveUnit('${critUnitKey}')">Resolve</button>
     </div>`;
   }
@@ -523,17 +547,17 @@ function renderDashboard(c){
     const warnUnitKey=UNIT_KEYS.find(uk=>latest[uk]&&ratioStatus(uk,latest[uk].nurses,latest[uk].patients)==='warn');
     alertHtml=`<div class="alert alert-warn">
       <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      <span class="alert-text">${warnU} unit${warnU>1?'s':''} stretched — consider staff reallocation</span>
+      <span class="alert-text">${warnU} unit${warnU>1?'s':''} stretched${shiftFilter!=='all'?' ('+shiftFilter+' shift)':''} — consider staff reallocation</span>
       <button class="resolve-btn resolve-btn-warn" onclick="resolveUnit('${warnUnitKey}')">Resolve</button>
     </div>`;
   }
-  else alertHtml=`<div class="alert alert-ok"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>All units within recommended staffing ratios</div>`;
+  else alertHtml=`<div class="alert alert-ok"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>All units${shiftFilter!=='all'?' ('+shiftFilter+' shift)':''} within recommended staffing ratios</div>`;
 
   const syncStatus=demoMode?'<span style="font-size:12px;color:var(--amber-600)">⚠ Demo mode — not synced</span>':'<span style="font-size:12px;color:var(--green-700)"><span class="sync-dot"></span>Live sync on</span>';
 
   const unitCards=UNIT_KEYS.map(uk=>{
     const r=latest[uk];
-    if(!r)return `<div class="unit-card"><div class="unit-header"><div><div class="unit-name">${UNIT_LABELS[uk]}</div></div><span class="status-pill pill-gray">No data</span></div><div class="empty" style="padding:16px 0 4px">No entries logged yet</div></div>`;
+    if(!r)return `<div class="unit-card"><div class="unit-header"><div><div class="unit-name">${UNIT_LABELS[uk]}</div></div><span class="status-pill pill-gray">No data</span></div><div class="empty" style="padding:16px 0 4px">No entries${shiftFilter!=='all'?' for the '+shiftFilter+' shift':''} logged yet</div></div>`;
     const st=ratioStatus(uk,r.nurses,r.patients);
     const ratio=(r.patients/r.nurses);
     const rec=RECOMMENDED[uk];
@@ -554,6 +578,18 @@ function renderDashboard(c){
     </div>`;
   }).join('');
 
+  const shiftBtn=(key,label)=>`<button class="shift-filter-btn${shiftFilter===key?' active':''}" onclick="setDashboardShift('${key}')">${label}</button>`;
+  const shiftFilterBar=`
+    <div class="shift-filter-bar">
+      <span class="shift-filter-label">View by shift:</span>
+      <div class="shift-filter-group">
+        ${shiftBtn('all','All shifts')}
+        ${shiftBtn('night','Night')}
+        ${shiftBtn('morning','Morning')}
+        ${shiftBtn('afternoon','Afternoon')}
+      </div>
+    </div>`;
+
   c.innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:8px">
       <h1 class="page-title">Dashboard</h1>${syncStatus}
@@ -566,10 +602,11 @@ function renderDashboard(c){
       <div class="metric ${critU>0?'metric-red':''}"><div class="metric-label">Critical units</div><div class="metric-value">${critU}</div><div class="metric-sub">${critU>0?'Need attention':'All clear'}</div></div>
       <div class="metric"><div class="metric-label">Total entries</div><div class="metric-value">${appData.length}</div><div class="metric-sub">all time</div></div>
     </div>
+    ${shiftFilterBar}
     <div class="units-grid">${unitCards}</div>
     <div class="chart-card">
       <div class="chart-title">Staff vs patient load</div>
-      <div class="chart-sub">Latest entry per unit</div>
+      <div class="chart-sub">Latest entry per unit${shiftFilter!=='all'?' — '+shiftFilter.charAt(0).toUpperCase()+shiftFilter.slice(1)+' shift':''}</div>
       <div class="chart-legend">
         <span class="legend-item"><span class="swatch" style="background:#378ADD"></span>Nurses</span>
         <span class="legend-item"><span class="swatch" style="background:#D85A30"></span>Patients</span>
