@@ -277,54 +277,8 @@ a{color:var(--green-700);text-decoration:none}
 </head>
 <body>
 
-<!-- ── FIREBASE SETUP SCREEN ── -->
-<div class="screen active" id="screen-setup">
-  <div style="min-height:100vh;padding:24px 16px;max-width:640px;margin:0 auto">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px;padding-top:16px">
-      <div style="width:40px;height:40px;background:var(--green-700);border-radius:10px;display:flex;align-items:center;justify-content:center">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-      </div>
-      <div>
-        <div style="font-size:15px;font-weight:600;color:var(--gray-900)">Tema Urban Hospital</div>
-        <div style="font-size:12px;color:var(--gray-600)">Staff Ratio System — Firebase Setup</div>
-      </div>
-    </div>
-
-    <div class="firebase-notice">
-      <strong>One-time setup required.</strong> This app uses Google Firebase for real-time sync across all devices. 
-      Follow the steps below to connect your Firebase project, then this page will never appear again on this device.
-    </div>
-
-    <div class="config-form">
-      <div class="config-title">How to get your Firebase config</div>
-      <div class="config-sub">Complete these steps in the Firebase Console (free tier is sufficient)</div>
-      <div class="step"><div class="step-num">1</div><div class="step-content">Go to <strong>console.firebase.google.com</strong> → Create a new project (e.g. <code>tema-hospital</code>)</div></div>
-      <div class="step"><div class="step-num">2</div><div class="step-content">In the project, go to <strong>Project settings → Your apps → Add app → Web</strong>. Register the app and copy the config object shown.</div></div>
-      <div class="step"><div class="step-num">3</div><div class="step-content">Go to <strong>Build → Firestore Database → Create database</strong> → Start in <strong>test mode</strong> → choose your region.</div></div>
-      <div class="step"><div class="step-num">4</div><div class="step-content">Paste each value from the Firebase config object into the fields below and click <strong>Connect</strong>.</div></div>
-    </div>
-
-    <div class="config-form">
-      <div class="config-title">Firebase project credentials</div>
-      <div class="config-sub">All fields are required. Values are saved locally on this device only.</div>
-      <div class="config-grid">
-        <div class="form-row"><label>API Key</label><input type="text" id="cfg-apiKey" placeholder="AIzaSy..."/></div>
-        <div class="form-row"><label>Auth Domain</label><input type="text" id="cfg-authDomain" placeholder="your-project.firebaseapp.com"/></div>
-        <div class="form-row"><label>Project ID</label><input type="text" id="cfg-projectId" placeholder="your-project-id"/></div>
-        <div class="form-row"><label>Storage Bucket</label><input type="text" id="cfg-storageBucket" placeholder="your-project.appspot.com"/></div>
-        <div class="form-row"><label>Messaging Sender ID</label><input type="text" id="cfg-messagingSenderId" placeholder="123456789"/></div>
-        <div class="form-row"><label>App ID</label><input type="text" id="cfg-appId" placeholder="1:123:web:abc123"/></div>
-      </div>
-      <div id="cfg-error" style="color:var(--red-600);font-size:13px;margin-top:10px;display:none"></div>
-      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn btn-green" onclick="saveConfig()">Connect to Firebase</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- ── LOGIN SCREEN ── -->
-<div class="screen" id="screen-login">
+<div class="screen active" id="screen-login">
   <div class="login-bg">
     <div class="login-logo">
       <div class="login-logo-icon">
@@ -401,39 +355,14 @@ let db=null, unsubscribe=null, appData=[], currentUser=null, demoMode=false;
 let charts={};
 
 // ── Firebase init ──
-function loadConfig(){try{return JSON.parse(localStorage.getItem('tuh_fb_config'));}catch{return null;}}
-function saveConfigLS(cfg){localStorage.setItem('tuh_fb_config',JSON.stringify(cfg));}
-
-window.saveConfig=function(){
-  const cfg={
-    apiKey:document.getElementById('cfg-apiKey').value.trim(),
-    authDomain:document.getElementById('cfg-authDomain').value.trim(),
-    projectId:document.getElementById('cfg-projectId').value.trim(),
-    storageBucket:document.getElementById('cfg-storageBucket').value.trim(),
-    messagingSenderId:document.getElementById('cfg-messagingSenderId').value.trim(),
-    appId:document.getElementById('cfg-appId').value.trim()
-  };
-  const missing=Object.entries(cfg).filter(([,v])=>!v).map(([k])=>k);
-  if(missing.length){document.getElementById('cfg-error').textContent='Missing: '+missing.join(', ');document.getElementById('cfg-error').style.display='block';return;}
-  saveConfigLS(cfg);
-  initFirebase(cfg);
-};
-
-window.useDemoMode=function(){
-  demoMode=true;
-  localStorage.setItem('tuh_demo','1');
-  seedDemo();
-  showScreen('login');
-};
-
 function initFirebase(cfg){
   try{
     const app=initializeApp(cfg);
     db=getFirestore(app);
     showScreen('login');
   }catch(e){
-    document.getElementById('cfg-error').textContent='Firebase error: '+e.message;
-    document.getElementById('cfg-error').style.display='block';
+    console.error('Firebase init error:',e);
+    alert('Firebase connection error: '+e.message);
   }
 }
 
