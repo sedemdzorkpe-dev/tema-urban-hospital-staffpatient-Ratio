@@ -177,6 +177,15 @@ a{color:var(--green-700);text-decoration:none}
 }
 .shift-filter-btn:hover{background:var(--gray-100)}
 .shift-filter-btn.active{background:var(--green-700);color:#fff;border-color:var(--green-700)}
+.shift-filter-group input[type="date"]{
+  padding:6px 12px;border:1px solid var(--border);border-radius:20px;font-size:12px;
+  background:var(--surface);color:var(--gray-900);font-family:var(--font);
+}
+.shift-filter-group input[type="date"]:focus{outline:none;border-color:var(--green-600);box-shadow:0 0 0 3px rgba(29,158,117,0.12)}
+.unit-edited-tag{
+  margin-top:8px;font-size:11px;font-weight:600;color:var(--blue-700);
+  background:var(--blue-50);border-radius:6px;padding:3px 8px;display:inline-block;
+}
 .units-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:16px}
 @media(min-width:600px){.units-grid{grid-template-columns:repeat(3,1fr)}}
 .unit-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px}
@@ -378,6 +387,7 @@ let db=null, unsubscribe=null, appData=[], currentUser=null, demoMode=false;
 let charts={};
 let pendingResolveEntry=null;
 let dashboardShiftFilter='all';
+let dashboardDateFilter='';
 
 // ── Firebase init ──
 function initFirebase(cfg){
@@ -536,13 +546,22 @@ window.setDashboardShift=function(shift){
   renderDashboard(document.getElementById('tab-content'));
 };
 
+// Filter the dashboard's "current status" view by a specific date (empty = show latest)
+window.setDashboardDate=function(dateStr){
+  dashboardDateFilter=dateStr||'';
+  destroyCharts();
+  renderDashboard(document.getElementById('tab-content'));
+};
+
 // ── Dashboard ──
 function renderDashboard(c){
   const shiftFilter=dashboardShiftFilter;
+  const dateFilter=dashboardDateFilter;
   const latest={};
   UNIT_KEYS.forEach(uk=>{
     let rows=[...appData].filter(r=>r.unit===uk);
     if(shiftFilter!=='all')rows=rows.filter(r=>r.shift===shiftFilter);
+    if(dateFilter)rows=rows.filter(r=>r.date===dateFilter);
     rows=rows.sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.submittedAt?.toString()||'').localeCompare(a.submittedAt?.toString()||''));
     if(rows.length)latest[uk]=rows[0];
   });
@@ -551,36 +570,45 @@ function renderDashboard(c){
   const critU=UNIT_KEYS.filter(uk=>latest[uk]&&ratioStatus(uk,latest[uk].nurses,latest[uk].patients)==='crit').length;
   const warnU=UNIT_KEYS.filter(uk=>latest[uk]&&ratioStatus(uk,latest[uk].nurses,latest[uk].patients)==='warn').length;
 
+  const qualifierParts=[];
+  if(shiftFilter!=='all')qualifierParts.push(shiftFilter+' shift');
+  if(dateFilter)qualifierParts.push(dateFilter);
+  const qualifier=qualifierParts.length?' ('+qualifierParts.join(', ')+')':'';
+  const isHistorical=!!dateFilter;
+
   let alertHtml='';
-  if(Object.keys(latest).length===0)alertHtml=`<div class="alert alert-info"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>No entries${shiftFilter!=='all'?' for the '+shiftFilter+' shift':''} yet. Staff can add entries from their devices.</div>`;
+  if(Object.keys(latest).length===0)alertHtml=`<div class="alert alert-info"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>No entries${qualifier?' for'+qualifier:''} found.</div>`;
   else if(critU>0){
     const critUnitKey=UNIT_KEYS.find(uk=>latest[uk]&&ratioStatus(uk,latest[uk].nurses,latest[uk].patients)==='crit');
+    const resolveBtn=isHistorical?'':`<button class="resolve-btn resolve-btn-crit" onclick="resolveUnit('${critUnitKey}')">Resolve</button>`;
     alertHtml=`<div class="alert alert-crit">
       <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      <span class="alert-text">${critU} unit${critU>1?'s':''} in critical ratio${shiftFilter!=='all'?' ('+shiftFilter+' shift)':''} — immediate reallocation needed</span>
-      <button class="resolve-btn resolve-btn-crit" onclick="resolveUnit('${critUnitKey}')">Resolve</button>
+      <span class="alert-text">${critU} unit${critU>1?'s':''} in critical ratio${qualifier} — ${isHistorical?'reallocation was needed':'immediate reallocation needed'}</span>
+      ${resolveBtn}
     </div>`;
   }
   else if(warnU>0){
     const warnUnitKey=UNIT_KEYS.find(uk=>latest[uk]&&ratioStatus(uk,latest[uk].nurses,latest[uk].patients)==='warn');
+    const resolveBtn=isHistorical?'':`<button class="resolve-btn resolve-btn-warn" onclick="resolveUnit('${warnUnitKey}')">Resolve</button>`;
     alertHtml=`<div class="alert alert-warn">
       <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      <span class="alert-text">${warnU} unit${warnU>1?'s':''} stretched${shiftFilter!=='all'?' ('+shiftFilter+' shift)':''} — consider staff reallocation</span>
-      <button class="resolve-btn resolve-btn-warn" onclick="resolveUnit('${warnUnitKey}')">Resolve</button>
+      <span class="alert-text">${warnU} unit${warnU>1?'s':''} stretched${qualifier} — ${isHistorical?'reallocation may have been needed':'consider staff reallocation'}</span>
+      ${resolveBtn}
     </div>`;
   }
-  else alertHtml=`<div class="alert alert-ok"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>All units${shiftFilter!=='all'?' ('+shiftFilter+' shift)':''} within recommended staffing ratios</div>`;
+  else alertHtml=`<div class="alert alert-ok"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>All units${qualifier} were within recommended staffing ratios</div>`;
 
   const syncStatus=demoMode?'<span style="font-size:12px;color:var(--amber-600)">⚠ Demo mode — not synced</span>':'<span style="font-size:12px;color:var(--green-700)"><span class="sync-dot"></span>Live sync on</span>';
 
   const unitCards=UNIT_KEYS.map(uk=>{
     const r=latest[uk];
-    if(!r)return `<div class="unit-card"><div class="unit-header"><div><div class="unit-name">${UNIT_LABELS[uk]}</div></div><span class="status-pill pill-gray">No data</span></div><div class="empty" style="padding:16px 0 4px">No entries${shiftFilter!=='all'?' for the '+shiftFilter+' shift':''} logged yet</div></div>`;
+    if(!r)return `<div class="unit-card"><div class="unit-header"><div><div class="unit-name">${UNIT_LABELS[uk]}</div></div><span class="status-pill pill-gray">No data</span></div><div class="empty" style="padding:16px 0 4px">No entries found${qualifier}</div></div>`;
     const st=ratioStatus(uk,r.nurses,r.patients);
     const ratio=(r.patients/r.nurses);
     const rec=RECOMMENDED[uk];
     const pct=Math.min(100,Math.round(ratio/rec*100));
     const fillColor=st==='ok'?'var(--green-600)':st==='warn'?'var(--amber-400)':'var(--red-400)';
+    const editedTag=r.resolvedAt?`<div class="unit-edited-tag">Edited / resolved</div>`:'';
     return `<div class="unit-card">
       <div class="unit-header">
         <div><div class="unit-name">${UNIT_LABELS[uk]}</div><div class="unit-date">${r.date} · ${r.shift||''}</div></div>
@@ -589,15 +617,16 @@ function renderDashboard(c){
       <div class="unit-stats">
         <div class="stat-row"><span class="stat-label">Nurses on duty</span><span class="stat-val">${r.nurses}</span></div>
         <div class="stat-row"><span class="stat-label">Patients</span><span class="stat-val">${r.patients}</span></div>
-        <div class="stat-row"><span class="stat-label">Current ratio</span><span class="stat-val ${valClass(st)}">1 : ${ratio.toFixed(1)}</span></div>
+        <div class="stat-row"><span class="stat-label">${isHistorical?'Ratio':'Current ratio'}</span><span class="stat-val ${valClass(st)}">1 : ${ratio.toFixed(1)}</span></div>
         <div class="stat-row"><span class="stat-label">Recommended</span><span class="stat-val" style="color:var(--gray-600)">1 : ${rec}</span></div>
       </div>
       <div class="ratio-track"><div class="ratio-fill" style="width:${pct}%;background:${fillColor}"></div></div>
+      ${editedTag}
     </div>`;
   }).join('');
 
   const shiftBtn=(key,label)=>`<button class="shift-filter-btn${shiftFilter===key?' active':''}" onclick="setDashboardShift('${key}')">${label}</button>`;
-  const shiftFilterBar=`
+  const filterBar=`
     <div class="shift-filter-bar">
       <span class="shift-filter-label">View by shift:</span>
       <div class="shift-filter-group">
@@ -606,25 +635,32 @@ function renderDashboard(c){
         ${shiftBtn('morning','Morning')}
         ${shiftBtn('afternoon','Afternoon')}
       </div>
+    </div>
+    <div class="shift-filter-bar">
+      <span class="shift-filter-label">View date:</span>
+      <div class="shift-filter-group" style="align-items:center">
+        <input type="date" id="dash-date" value="${dateFilter}" max="${today()}" onchange="setDashboardDate(this.value)"/>
+        ${dateFilter?`<button class="shift-filter-btn" onclick="setDashboardDate('')">Show latest</button>`:''}
+      </div>
     </div>`;
 
   c.innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:8px">
       <h1 class="page-title">Dashboard</h1>${syncStatus}
     </div>
-    <p class="page-sub">Live staffing overview — all units</p>
+    <p class="page-sub">${isHistorical?'Staffing snapshot for '+dateFilter:'Live staffing overview — all units'}</p>
     ${alertHtml}
     <div class="metrics">
-      <div class="metric"><div class="metric-label">Nurses on duty</div><div class="metric-value">${totalN}</div><div class="metric-sub">across all units</div></div>
-      <div class="metric"><div class="metric-label">Total patients</div><div class="metric-value">${totalP}</div><div class="metric-sub">across all units</div></div>
+      <div class="metric"><div class="metric-label">Nurses on duty</div><div class="metric-value">${totalN}</div><div class="metric-sub">${isHistorical?dateFilter:'across all units'}</div></div>
+      <div class="metric"><div class="metric-label">Total patients</div><div class="metric-value">${totalP}</div><div class="metric-sub">${isHistorical?dateFilter:'across all units'}</div></div>
       <div class="metric ${critU>0?'metric-red':''}"><div class="metric-label">Critical units</div><div class="metric-value">${critU}</div><div class="metric-sub">${critU>0?'Need attention':'All clear'}</div></div>
       <div class="metric"><div class="metric-label">Total entries</div><div class="metric-value">${appData.length}</div><div class="metric-sub">all time</div></div>
     </div>
-    ${shiftFilterBar}
+    ${filterBar}
     <div class="units-grid">${unitCards}</div>
     <div class="chart-card">
       <div class="chart-title">Staff vs patient load</div>
-      <div class="chart-sub">Latest entry per unit${shiftFilter!=='all'?' — '+shiftFilter.charAt(0).toUpperCase()+shiftFilter.slice(1)+' shift':''}</div>
+      <div class="chart-sub">${isHistorical?dateFilter:'Latest entry per unit'}${shiftFilter!=='all'?' — '+shiftFilter.charAt(0).toUpperCase()+shiftFilter.slice(1)+' shift':''}</div>
       <div class="chart-legend">
         <span class="legend-item"><span class="swatch" style="background:#378ADD"></span>Nurses</span>
         <span class="legend-item"><span class="swatch" style="background:#D85A30"></span>Patients</span>
@@ -784,11 +820,11 @@ window.submitEntry=async function(){
 
 // ── Log ──
 function renderLog(c,rows){
-  const sorted=[...rows].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const sorted=[...rows].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.resolvedAt||b.submittedAt||'').toString().localeCompare((a.resolvedAt||a.submittedAt||'').toString()));
   const isHead=currentUser.role==='head';
 
   const tableRows=!sorted.length
-    ?`<tr><td colspan="9"><div class="empty"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>No entries found</div></td></tr>`
+    ?`<tr><td colspan="10"><div class="empty"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>No entries found</div></td></tr>`
     :sorted.map(r=>{
       const st=ratioStatus(r.unit,r.nurses,r.patients);
       const ratio=r.nurses>0?(r.patients/r.nurses).toFixed(1):'—';
@@ -798,6 +834,9 @@ function renderLog(c,rows){
             Delete
           </button></td>`
         :`<td style="font-size:11px;color:var(--gray-600)">${r.submittedBy||'—'}</td>`;
+      const updatedCell=r.resolvedAt
+        ?`<td style="font-size:11px;color:var(--blue-700)"><span class="tag tag-blue" style="font-size:10px">Edited</span><br>${new Date(r.resolvedAt).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</td>`
+        :`<td style="font-size:11px;color:var(--gray-400)">—</td>`;
       return `<tr>
         <td style="white-space:nowrap">${r.date||'—'}</td>
         <td><span class="tag tag-gray" style="font-size:11px;white-space:nowrap">${UNIT_LABELS[r.unit]||r.unit}</span></td>
@@ -807,6 +846,7 @@ function renderLog(c,rows){
         <td class="${valClass(st)}" style="font-weight:700;font-family:var(--mono)">${ratio}</td>
         <td><span class="status-pill ${pillClass(st)}" style="font-size:11px;white-space:nowrap">${statusLabel(st)}</span></td>
         <td style="font-size:11px;color:var(--gray-600);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.note||''}</td>
+        ${updatedCell}
         ${delBtn}
       </tr>`;
     }).join('');
@@ -837,7 +877,7 @@ function renderLog(c,rows){
       <table class="data-table" id="records-table">
         <thead><tr>
           <th>Date</th><th>Unit</th><th>Shift</th><th>Nurses</th><th>Patients</th>
-          <th>Ratio</th><th>Status</th><th>Notes</th><th>${isHead?'Action':'By'}</th>
+          <th>Ratio</th><th>Status</th><th>Notes</th><th>Last Updated</th><th>${isHead?'Action':'By'}</th>
         </tr></thead>
         <tbody>${tableRows}</tbody>
       </table>
