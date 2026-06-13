@@ -186,6 +186,23 @@ a{color:var(--green-700);text-decoration:none}
   margin-top:8px;font-size:11px;font-weight:600;color:var(--blue-700);
   background:var(--blue-50);border-radius:6px;padding:3px 8px;display:inline-block;
 }
+.log-filter-bar{
+  display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;
+  margin-bottom:14px;padding:14px;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--radius-lg);
+}
+.log-filter-item{display:flex;flex-direction:column;gap:5px;min-width:140px}
+.log-filter-item label{font-size:11px;font-weight:600;color:var(--gray-600);text-transform:uppercase;letter-spacing:0.5px}
+.log-filter-item select,.log-filter-item input[type="date"]{
+  padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--bg);color:var(--gray-900);font-size:13px;font-family:var(--font);
+  appearance:none;-webkit-appearance:none;
+}
+.log-filter-item select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888780' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;
+}
+.log-filter-item select:focus,.log-filter-item input:focus{outline:none;border-color:var(--green-600);box-shadow:0 0 0 3px rgba(29,158,117,0.12)}
 .units-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:16px}
 @media(min-width:600px){.units-grid{grid-template-columns:repeat(3,1fr)}}
 .unit-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px}
@@ -388,6 +405,9 @@ let charts={};
 let pendingResolveEntry=null;
 let dashboardShiftFilter='all';
 let dashboardDateFilter='';
+let logUnitFilter='all';
+let logDateFromFilter='';
+let logDateToFilter='';
 
 // ── Firebase init ──
 function initFirebase(cfg){
@@ -510,7 +530,7 @@ function buildNav(){
     </div>`).join('');
 }
 
-function renderCurrentTab(){renderTab(activeTab,true);}
+function renderCurrentTab(){window.renderTab(activeTab,true);}
 
 window.renderTab=function(id,silent=false){
   activeTab=id;
@@ -820,11 +840,21 @@ window.submitEntry=async function(){
 
 // ── Log ──
 function renderLog(c,rows){
-  const sorted=[...rows].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.resolvedAt||b.submittedAt||'').toString().localeCompare((a.resolvedAt||a.submittedAt||'').toString()));
   const isHead=currentUser.role==='head';
 
+  // Apply unit and date-range filters
+  let filtered=[...rows];
+  if(logUnitFilter!=='all')filtered=filtered.filter(r=>r.unit===logUnitFilter);
+  if(logDateFromFilter)filtered=filtered.filter(r=>(r.date||'')>=logDateFromFilter);
+  if(logDateToFilter)filtered=filtered.filter(r=>(r.date||'')<=logDateToFilter);
+
+  const sorted=filtered.sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.resolvedAt||b.submittedAt||'').toString().localeCompare((a.resolvedAt||a.submittedAt||'').toString()));
+
+  const filtersActive=logUnitFilter!=='all'||logDateFromFilter||logDateToFilter;
+  const noResultsMsg=filtersActive?'No entries match the selected filters':'No entries found';
+
   const tableRows=!sorted.length
-    ?`<tr><td colspan="10"><div class="empty"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>No entries found</div></td></tr>`
+    ?`<tr><td colspan="10"><div class="empty"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${noResultsMsg}</div></td></tr>`
     :sorted.map(r=>{
       const st=ratioStatus(r.unit,r.nurses,r.patients);
       const ratio=r.nurses>0?(r.patients/r.nurses).toFixed(1):'—';
@@ -864,14 +894,35 @@ function renderLog(c,rows){
       </button>
     </div>`:'';
 
+  const unitOpts=`<option value="all" ${logUnitFilter==='all'?'selected':''}>All units</option>` +
+    UNIT_KEYS.map(uk=>`<option value="${uk}" ${logUnitFilter===uk?'selected':''}>${UNIT_LABELS[uk]}</option>`).join('');
+
+  const filterBar=`
+    <div class="log-filter-bar">
+      <div class="log-filter-item">
+        <label>Unit</label>
+        <select id="log-unit-filter" onchange="setLogUnitFilter(this.value)">${unitOpts}</select>
+      </div>
+      <div class="log-filter-item">
+        <label>From date</label>
+        <input type="date" id="log-date-from" value="${logDateFromFilter}" max="${today()}" onchange="setLogDateFilter('from',this.value)"/>
+      </div>
+      <div class="log-filter-item">
+        <label>To date</label>
+        <input type="date" id="log-date-to" value="${logDateToFilter}" max="${today()}" onchange="setLogDateFilter('to',this.value)"/>
+      </div>
+      ${filtersActive?`<div class="log-filter-item" style="align-self:flex-end"><button class="shift-filter-btn" onclick="clearLogFilters()">Clear filters</button></div>`:''}
+    </div>`;
+
   c.innerHTML=`
     <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px">
       <div>
         <h1 class="page-title">${isHead?'All records':'My records'}</h1>
-        <p class="page-sub" style="margin-bottom:0">${sorted.length} entries logged</p>
+        <p class="page-sub" style="margin-bottom:0">${sorted.length} of ${rows.length} entries${filtersActive?' shown (filtered)':' logged'}</p>
       </div>
     </div>
     <div style="height:12px"></div>
+    ${filterBar}
     ${exportBar}
     <div class="table-wrap">
       <table class="data-table" id="records-table">
@@ -883,6 +934,23 @@ function renderLog(c,rows){
       </table>
     </div>`;
 }
+
+// ── Log filter handlers ──
+window.setLogUnitFilter=function(val){
+  logUnitFilter=val;
+  window.renderTab(activeTab,true);
+};
+window.setLogDateFilter=function(which,val){
+  if(which==='from')logDateFromFilter=val||'';
+  else logDateToFilter=val||'';
+  window.renderTab(activeTab,true);
+};
+window.clearLogFilters=function(){
+  logUnitFilter='all';
+  logDateFromFilter='';
+  logDateToFilter='';
+  window.renderTab(activeTab,true);
+};
 
 // ── Export to Excel ──
 window.exportExcel=function(){
