@@ -1185,8 +1185,10 @@ window.updateMonthly=function(){
 function renderAnnual(c){
   const yr=new Date().getFullYear();
   const totalE=appData.length;
-  const allRatios=appData.filter(r=>r.nurses>0).map(r=>r.patients/r.nurses);
-  const avgR=allRatios.length?(allRatios.reduce((a,b)=>a+b,0)/allRatios.length).toFixed(1):0;
+  const validEntries=appData.filter(r=>r.nurses>0);
+  const totalNurses=validEntries.reduce((s,r)=>s+r.nurses,0);
+  const totalPatients=validEntries.reduce((s,r)=>s+r.patients,0);
+  const avgR=totalNurses>0?(totalPatients/totalNurses).toFixed(1):0;
   const okPct=appData.length?Math.round(appData.filter(r=>ratioStatus(r.unit,r.nurses,r.patients)==='ok').length/appData.length*100):0;
 
   c.innerHTML=`
