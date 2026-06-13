@@ -203,6 +203,7 @@ a{color:var(--green-700);text-decoration:none}
   background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;
 }
 .log-filter-item select:focus,.log-filter-item input:focus{outline:none;border-color:var(--green-600);box-shadow:0 0 0 3px rgba(29,158,117,0.12)}
+.log-filter-item select:disabled{opacity:0.5;cursor:not-allowed}
 .units-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:16px}
 @media(min-width:600px){.units-grid{grid-template-columns:repeat(3,1fr)}}
 .unit-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px}
@@ -408,6 +409,9 @@ let dashboardDateFilter='';
 let logUnitFilter='all';
 let logDateFromFilter='';
 let logDateToFilter='';
+let monthlyYearFilter=new Date().getFullYear();
+let monthlyMonthFilter='all';
+let monthlyDayFilter='all';
 
 // ── Firebase init ──
 function initFirebase(cfg){
@@ -1109,47 +1113,137 @@ window.exportPDF=function(){
 
 // ── Monthly ──
 function renderMonthly(c){
-  const yr=new Date().getFullYear();
+  const yr=monthlyYearFilter;
+  const curYr=new Date().getFullYear();
+  const monthSel=monthlyMonthFilter;
+  const daySel=monthlyDayFilter;
+  const isDayView=monthSel!=='all'&&daySel!=='all';
+  const isMonthView=monthSel!=='all';
+
+  // Days in selected month (for day dropdown population)
+  let daysInMonth=31;
+  if(isMonthView){
+    daysInMonth=new Date(yr,parseInt(monthSel)+1,0).getDate();
+  }
+
+  const monthOpts=`<option value="all" ${monthSel==='all'?'selected':''}>All months</option>`+
+    MONTHS.map((m,i)=>`<option value="${i}" ${monthSel===String(i)?'selected':''}>${m}</option>`).join('');
+
+  const dayOpts=`<option value="all" ${daySel==='all'?'selected':''}>All days</option>`+
+    Array.from({length:daysInMonth},(_,i)=>i+1).map(d=>`<option value="${d}" ${daySel===String(d)?'selected':''}>${d}</option>`).join('');
+
+  let pageSubText='Staff-to-patient ratios by month';
+  if(isDayView)pageSubText=`Staff-to-patient ratios for ${daySel} ${MONTHS[monthSel]} ${yr}`;
+  else if(isMonthView)pageSubText=`Daily staff-to-patient ratios for ${MONTHS[monthSel]} ${yr}`;
+
   c.innerHTML=`
     <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px">
-      <div><h1 class="page-title">Monthly projection</h1><p class="page-sub" style="margin-bottom:0">Staff-to-patient ratios by month</p></div>
+      <div><h1 class="page-title">Monthly projection</h1><p class="page-sub" style="margin-bottom:0">${pageSubText}</p></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:4px">
         <button class="btn-excel" onclick="exportExcel()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Excel</button>
         <button class="btn-pdf" onclick="exportPDF()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>PDF</button>
+        <button class="btn-pdf" style="background:var(--green-700)" onclick="exportMonthlyChartsPDF()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>Export charts (PDF)</button>
       </div>
     </div>
     <div style="height:12px"></div>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-      <div class="form-row" style="margin:0;min-width:120px">
-        <label style="font-size:12px;font-weight:500;color:var(--gray-700)">Year</label>
-        <select id="f-year" onchange="updateMonthly()" style="padding:8px 32px 8px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--gray-900);font-size:13px;appearance:none;-webkit-appearance:none;background-image:url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%228%22 viewBox=%220 0 12 8%22%3E%3Cpath d=%22M1 1l5 5 5-5%22 stroke=%22%23888780%22 stroke-width=%221.5%22 fill=%22none%22 stroke-linecap=%22round%22/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 10px center">
-          ${[yr-1,yr,yr+1].map(y=>`<option value="${y}" ${y===yr?'selected':''}>${y}</option>`).join('')}
+    <div class="log-filter-bar">
+      <div class="log-filter-item">
+        <label>Year</label>
+        <select id="f-year" onchange="setMonthlyFilter('year',this.value)">
+          ${[curYr-1,curYr,curYr+1].map(y=>`<option value="${y}" ${y===yr?'selected':''}>${y}</option>`).join('')}
         </select>
       </div>
+      <div class="log-filter-item">
+        <label>Month</label>
+        <select id="f-month" onchange="setMonthlyFilter('month',this.value)">${monthOpts}</select>
+      </div>
+      <div class="log-filter-item">
+        <label>Day</label>
+        <select id="f-day" onchange="setMonthlyFilter('day',this.value)" ${monthSel==='all'?'disabled':''}>${dayOpts}</select>
+      </div>
+      ${(monthSel!=='all'||daySel!=='all')?`<div class="log-filter-item" style="align-self:flex-end"><button class="shift-filter-btn" onclick="resetMonthlyFilter()">Reset to full year</button></div>`:''}
     </div>
+    ${isDayView?renderDaySummaryCards(yr,monthSel,daySel):''}
     ${UNIT_KEYS.map((uk,i)=>`
     <div class="chart-card">
       <div class="chart-title">${UNIT_LABELS[uk]}</div>
-      <div class="chart-sub">Monthly avg nurses &amp; patients — recommended limit shown</div>
+      <div class="chart-sub">${isMonthView?`Daily avg nurses &amp; patients — ${MONTHS[monthSel]} ${yr}`:'Monthly avg nurses &amp; patients'} — recommended limit shown</div>
       <div class="chart-legend">
         <span class="legend-item"><span class="swatch" style="background:${CHART_COLORS[i]}"></span>Nurses</span>
         <span class="legend-item"><span class="swatch" style="background:${CHART_COLORS[i]};opacity:.4"></span>Patients</span>
         <span class="legend-item"><span class="swatch-line" style="background:var(--green-600)"></span>Recommended limit</span>
       </div>
-      <div style="position:relative;height:180px"><canvas id="mc-${uk}" role="img" aria-label="Monthly chart ${UNIT_LABELS[uk]}">${UNIT_LABELS[uk]} monthly data.</canvas></div>
+      <div style="position:relative;height:180px"><canvas id="mc-${uk}" role="img" aria-label="Chart ${UNIT_LABELS[uk]}">${UNIT_LABELS[uk]} data.</canvas></div>
     </div>`).join('')}
     <div class="chart-card">
-      <div class="chart-title">Monthly summary table</div>
+      <div class="chart-title">${isMonthView?'Daily':'Monthly'} summary table</div>
       <div id="monthly-tbl" style="overflow-x:auto"></div>
     </div>`;
   setTimeout(()=>updateMonthly(),80);
 }
 
+// Quick-glance cards when a single day is selected
+function renderDaySummaryCards(yr,monthIdx,day){
+  const dateStr=`${yr}-${String(parseInt(monthIdx)+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  const cards=UNIT_KEYS.map(uk=>{
+    const rows=appData.filter(r=>r.unit===uk&&r.date===dateStr);
+    if(!rows.length)return `<div class="unit-card"><div class="unit-header"><div class="unit-name">${UNIT_LABELS[uk]}</div><span class="status-pill pill-gray">No data</span></div><div class="empty" style="padding:16px 0 4px">No entries for ${dateStr}</div></div>`;
+    return rows.map(r=>{
+      const st=ratioStatus(uk,r.nurses,r.patients);
+      const ratio=(r.patients/r.nurses).toFixed(1);
+      return `<div class="unit-card">
+        <div class="unit-header">
+          <div><div class="unit-name">${UNIT_LABELS[uk]}</div><div class="unit-date">${r.date} · ${r.shift||''}</div></div>
+          <span class="status-pill ${pillClass(st)}">${statusLabel(st)}</span>
+        </div>
+        <div class="unit-stats">
+          <div class="stat-row"><span class="stat-label">Nurses on duty</span><span class="stat-val">${r.nurses}</span></div>
+          <div class="stat-row"><span class="stat-label">Patients</span><span class="stat-val">${r.patients}</span></div>
+          <div class="stat-row"><span class="stat-label">Ratio</span><span class="stat-val ${valClass(st)}">1 : ${ratio}</span></div>
+          <div class="stat-row"><span class="stat-label">Recommended</span><span class="stat-val" style="color:var(--gray-600)">1 : ${RECOMMENDED[uk]}</span></div>
+        </div>
+      </div>`;
+    }).join('');
+  }).join('');
+  return `<div class="units-grid">${cards}</div>`;
+}
+
+// ── Monthly filter handlers ──
+window.setMonthlyFilter=function(type,val){
+  if(type==='year')monthlyYearFilter=parseInt(val);
+  else if(type==='month'){monthlyMonthFilter=val;monthlyDayFilter='all';}
+  else if(type==='day')monthlyDayFilter=val;
+  destroyCharts();
+  renderMonthly(document.getElementById('tab-content'));
+};
+window.resetMonthlyFilter=function(){
+  monthlyMonthFilter='all';
+  monthlyDayFilter='all';
+  destroyCharts();
+  renderMonthly(document.getElementById('tab-content'));
+};
+
 window.updateMonthly=function(){
-  const yr=parseInt(document.getElementById('f-year')?.value||new Date().getFullYear());
+  const yr=monthlyYearFilter;
+  const monthSel=monthlyMonthFilter;
+  const isMonthView=monthSel!=='all';
+  let labels,getRowsFor,countLabel;
+
+  if(isMonthView){
+    const daysInMonth=new Date(yr,parseInt(monthSel)+1,0).getDate();
+    labels=Array.from({length:daysInMonth},(_,i)=>String(i+1));
+    getRowsFor=(idx)=>{
+      const dateStr=`${yr}-${String(parseInt(monthSel)+1).padStart(2,'0')}-${String(idx+1).padStart(2,'0')}`;
+      return appData.filter(r=>r.date===dateStr);
+    };
+  }else{
+    labels=MONTHS;
+    getRowsFor=(idx)=>appData.filter(r=>r.date?.startsWith(`${yr}-${String(idx+1).padStart(2,'0')}`));
+  }
+
   UNIT_KEYS.forEach((uk,i)=>{
-    const mN=MONTHS.map((_,m)=>{const rows=appData.filter(r=>r.unit===uk&&r.date?.startsWith(`${yr}-${String(m+1).padStart(2,'0')}`));return rows.length?+(rows.reduce((s,r)=>s+r.nurses,0)/rows.length).toFixed(1):null;});
-    const mP=MONTHS.map((_,m)=>{const rows=appData.filter(r=>r.unit===uk&&r.date?.startsWith(`${yr}-${String(m+1).padStart(2,'0')}`));return rows.length?+(rows.reduce((s,r)=>s+r.patients,0)/rows.length).toFixed(1):null;});
+    const mN=labels.map((_,idx)=>{const rows=getRowsFor(idx).filter(r=>r.unit===uk);return rows.length?+(rows.reduce((s,r)=>s+r.nurses,0)/rows.length).toFixed(1):null;});
+    const mP=labels.map((_,idx)=>{const rows=getRowsFor(idx).filter(r=>r.unit===uk);return rows.length?+(rows.reduce((s,r)=>s+r.patients,0)/rows.length).toFixed(1):null;});
     const rec=RECOMMENDED[uk];
     const id='mc-'+uk;
     if(charts[id])try{charts[id].destroy();}catch{}
@@ -1157,18 +1251,19 @@ window.updateMonthly=function(){
     const col=CHART_COLORS[i];
     charts[id]=new Chart(el,{
       type:'bar',
-      data:{labels:MONTHS,datasets:[
+      data:{labels,datasets:[
         {label:'Nurses',data:mN,backgroundColor:col+'cc',borderRadius:3,order:2},
         {label:'Patients',data:mP,backgroundColor:col+'55',borderRadius:3,order:2},
-        {label:'Recommended',data:Array(12).fill(rec),type:'line',borderColor:'#1D9E75',borderDash:[4,3],borderWidth:2,pointRadius:0,fill:false,order:1}
+        {label:'Recommended',data:Array(labels.length).fill(rec),type:'line',borderColor:'#1D9E75',borderDash:[4,3],borderWidth:2,pointRadius:0,fill:false,order:1}
       ]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{autoSkip:false,maxRotation:0,font:{size:11}}},y:{beginAtZero:true}}}
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{autoSkip:!isMonthView,maxRotation:0,font:{size:isMonthView?9:11}}},y:{beginAtZero:true}}}
     });
   });
+
   const tbl=document.getElementById('monthly-tbl');if(!tbl)return;
-  const rows=MONTHS.map((mn,m)=>{
+  const rows=labels.map((lbl,idx)=>{
     const cells=UNIT_KEYS.map(uk=>{
-      const entries=appData.filter(r=>r.unit===uk&&r.date?.startsWith(`${new Date().getFullYear()}-${String(m+1).padStart(2,'0')}`));
+      const entries=getRowsFor(idx).filter(r=>r.unit===uk);
       if(!entries.length)return '<td style="color:var(--gray-400)">—</td>';
       const an=entries.reduce((s,r)=>s+r.nurses,0)/entries.length;
       const ap=entries.reduce((s,r)=>s+r.patients,0)/entries.length;
@@ -1176,9 +1271,68 @@ window.updateMonthly=function(){
       const st=ratioStatus(uk,an,ap);
       return `<td class="${valClass(st)}" style="font-weight:600">${ratio.toFixed(1)} <span style="font-size:11px;color:var(--gray-600);font-weight:400">(${entries.length})</span></td>`;
     }).join('');
-    return `<tr><td style="font-weight:500;color:var(--gray-700)">${mn}</td>${cells}</tr>`;
+    const rowLabel=isMonthView?`${lbl} ${MONTHS[monthlyMonthFilter]}`:lbl;
+    return `<tr><td style="font-weight:500;color:var(--gray-700)">${rowLabel}</td>${cells}</tr>`;
   }).join('');
-  tbl.innerHTML=`<table class="proj-table" style="min-width:380px"><thead><tr><th>Month</th>${UNIT_KEYS.map(uk=>`<th>${UNIT_LABELS[uk]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+  tbl.innerHTML=`<table class="proj-table" style="min-width:380px"><thead><tr><th>${isMonthView?'Day':'Month'}</th>${UNIT_KEYS.map(uk=>`<th>${UNIT_LABELS[uk]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+};
+
+// ── Export Monthly charts to PDF (for printing) ──
+window.exportMonthlyChartsPDF=async function(){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const GREEN=[15,110,86];const DARK=[26,26,26];const GRAY=[95,94,90];
+  const pageW=doc.internal.pageSize.width;
+  const pageH=doc.internal.pageSize.height;
+
+  const yr=monthlyYearFilter;
+  const monthSel=monthlyMonthFilter;
+  const daySel=monthlyDayFilter;
+  const isMonthView=monthSel!=='all';
+  let titleSuffix=`Full Year ${yr}`;
+  if(monthSel!=='all'&&daySel!=='all')titleSuffix=`${daySel} ${MONTHS[monthSel]} ${yr}`;
+  else if(monthSel!=='all')titleSuffix=`${MONTHS[monthSel]} ${yr}`;
+
+  // Header
+  doc.setFillColor(...GREEN);
+  doc.rect(0,0,pageW,18,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(13);doc.setFont('helvetica','bold');
+  doc.text('Tema Urban Hospital — Staffing Charts',14,11);
+  doc.setFontSize(8);doc.setFont('helvetica','normal');
+  doc.text(`${titleSuffix}  |  Generated: ${new Date().toLocaleString('en-GB')}`,14,15.5);
+
+  let y=24;
+  for(const uk of UNIT_KEYS){
+    const canvas=document.getElementById('mc-'+uk);
+    if(!canvas)continue;
+    const imgData=canvas.toDataURL('image/png',1.0);
+    const imgW=pageW-28;
+    const imgH=imgW*(canvas.height/canvas.width);
+
+    if(y+imgH+16>pageH-12){
+      doc.addPage();
+      y=14;
+    }
+
+    doc.setTextColor(...DARK);doc.setFontSize(11);doc.setFont('helvetica','bold');
+    doc.text(`${UNIT_LABELS[uk]} — Recommended ratio 1:${RECOMMENDED[uk]}`,14,y);
+    y+=4;
+    doc.addImage(imgData,'PNG',14,y,imgW,imgH);
+    y+=imgH+10;
+  }
+
+  // Footer on each page
+  const pageCount=doc.internal.getNumberOfPages();
+  for(let i=1;i<=pageCount;i++){
+    doc.setPage(i);
+    doc.setFontSize(7);doc.setTextColor(...GRAY);doc.setFont('helvetica','normal');
+    doc.text(`Page ${i} of ${pageCount}  |  Tema Urban Hospital — Confidential`,14,pageH-5);
+    doc.text('Nursing & Midwifery Unit',pageW-14,pageH-5,{align:'right'});
+  }
+
+  const fileSuffix=titleSuffix.replace(/\s+/g,'_');
+  doc.save(`TemaHospital_Charts_${fileSuffix}.pdf`);
 };
 
 // ── Annual ──
