@@ -13,6 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <!-- External libs loaded before app module -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -412,6 +413,10 @@ let logDateToFilter='';
 let monthlyYearFilter=new Date().getFullYear();
 let monthlyMonthFilter='all';
 let monthlyDayFilter='all';
+let annualTrendGranularity='monthly'; // 'monthly' or 'daily'
+let annualTrendUnit='all'; // 'all' | 'opd' | 'paed' | 'mat'
+let annualTrendYear=new Date().getFullYear();
+let annualTrendMonth=new Date().getMonth(); // used when granularity==='daily'
 
 // ── Firebase init ──
 function initFirebase(cfg){
@@ -701,7 +706,7 @@ function renderDashboard(c){
           {label:'Nurses',data:UNIT_KEYS.map(uk=>latest[uk]?.nurses||0),backgroundColor:'rgba(55,138,221,0.8)',borderRadius:4},
           {label:'Patients',data:UNIT_KEYS.map(uk=>latest[uk]?.patients||0),backgroundColor:'rgba(216,90,48,0.8)',borderRadius:4}
         ]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{autoSkip:false}},y:{beginAtZero:true,ticks:{stepSize:1}}}}
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},datalabels:{display:true,anchor:'end',align:'top',font:{size:10,weight:'600'},color:'#444441',formatter:(v)=>v||''}},scales:{x:{ticks:{autoSkip:false}},y:{beginAtZero:true,ticks:{stepSize:1}}}}
     });
   },80);
 }
@@ -1021,20 +1026,52 @@ window.exportExcel=function(){
   XLSX.writeFile(wb,`TemaHospital_StaffRatio_${new Date().toISOString().slice(0,10)}.xlsx`);
 };
 
+// ── Shared PDF helpers (logo header + Head of Nursing signature block) ──
+const PDF_GREEN=[15,110,86];const PDF_DARK=[26,26,26];const PDF_GRAY=[95,94,90];
+
+function pdfAddHeader(doc,title,subtitle){
+  const pageW=doc.internal.pageSize.width;
+  doc.setFillColor(...PDF_GREEN);
+  doc.rect(0,0,pageW,20,'F');
+  // Logo (circular, top-left of header)
+  try{ doc.addImage(LOGO_DATA_URI,'PNG',6,2,16,16); }catch(e){}
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(13);doc.setFont('helvetica','bold');
+  doc.text(title,26,10);
+  doc.setFontSize(8);doc.setFont('helvetica','normal');
+  doc.text(subtitle,26,15.5);
+  return 26; // y-position to continue content from
+}
+
+function pdfAddFooterAndSignature(doc){
+  const pageW=doc.internal.pageSize.width;
+  const pageH=doc.internal.pageSize.height;
+  const pageCount=doc.internal.getNumberOfPages();
+  for(let i=1;i<=pageCount;i++){
+    doc.setPage(i);
+    // Signature block only on the last page
+    if(i===pageCount){
+      const sigY=pageH-22;
+      doc.setDrawColor(150,150,150);
+      doc.setLineWidth(0.2);
+      doc.line(pageW-90,sigY,pageW-14,sigY);
+      doc.setTextColor(...PDF_GRAY);doc.setFontSize(8);doc.setFont('helvetica','normal');
+      doc.text('Head of Nursing & Midwifery — Signature & Date',pageW-90,sigY+4);
+    }
+    doc.setFontSize(7);doc.setTextColor(...PDF_GRAY);doc.setFont('helvetica','normal');
+    doc.text(`Page ${i} of ${pageCount}  |  Tema Urban Hospital — Confidential`,14,pageH-5);
+    doc.text('Nursing & Midwifery Unit',pageW-14,pageH-5,{align:'right'});
+  }
+}
+
 // ── Export to PDF ──
 window.exportPDF=function(){
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
-  const GREEN=[15,110,86];const DARK=[26,26,26];const GRAY=[95,94,90];
+  const GREEN=PDF_GREEN;const DARK=PDF_DARK;const GRAY=PDF_GRAY;
 
-  // Header
-  doc.setFillColor(...GREEN);
-  doc.rect(0,0,297,18,'F');
-  doc.setTextColor(255,255,255);
-  doc.setFontSize(13);doc.setFont('helvetica','bold');
-  doc.text('Tema Urban Hospital — Staff to Patient Ratio Report',14,11);
-  doc.setFontSize(8);doc.setFont('helvetica','normal');
-  doc.text(`Generated: ${new Date().toLocaleString('en-GB')}  |  Head of Nursing & Midwifery`,14,15.5);
+  // Header (with logo)
+  pdfAddHeader(doc,'Tema Urban Hospital — Staff to Patient Ratio Report',`Generated: ${new Date().toLocaleString('en-GB')}  |  Head of Nursing & Midwifery`);
 
   // Summary boxes
   const totN=appData.reduce((s,r)=>s+r.nurses,0);
@@ -1043,18 +1080,18 @@ window.exportPDF=function(){
   const boxes=[['Total Entries',appData.length],['Total Nurses (all)',totN],['Total Patients (all)',totP],['Adequate Shifts',okPct+'%']];
   boxes.forEach((b,i)=>{
     const x=14+i*68;
-    doc.setFillColor(232,248,242);doc.roundedRect(x,21,63,14,2,2,'F');
+    doc.setFillColor(232,248,242);doc.roundedRect(x,24,63,14,2,2,'F');
     doc.setTextColor(...GRAY);doc.setFontSize(7);doc.setFont('helvetica','normal');
-    doc.text(b[0],x+3,27);
+    doc.text(b[0],x+3,30);
     doc.setTextColor(...DARK);doc.setFontSize(13);doc.setFont('helvetica','bold');
-    doc.text(String(b[1]),x+3,33);
+    doc.text(String(b[1]),x+3,36);
   });
 
   // Unit summary table
   doc.setTextColor(...DARK);doc.setFontSize(10);doc.setFont('helvetica','bold');
-  doc.text('Unit Summary',14,43);
+  doc.text('Unit Summary',14,46);
   doc.autoTable({
-    startY:46,
+    startY:49,
     head:[['Unit','Total Entries','Avg Nurses','Avg Patients','Avg Ratio','Adequate %','Recommended']],
     body:UNIT_KEYS.map(uk=>{
       const rows=appData.filter(r=>r.unit===uk);
@@ -1099,17 +1136,11 @@ window.exportPDF=function(){
     margin:{left:14,right:14},
   });
 
-  // Footer on each page
-  const pageCount=doc.internal.getNumberOfPages();
-  for(let i=1;i<=pageCount;i++){
-    doc.setPage(i);
-    doc.setFontSize(7);doc.setTextColor(...GRAY);doc.setFont('helvetica','normal');
-    doc.text(`Page ${i} of ${pageCount}  |  Tema Urban Hospital — Confidential`,14,doc.internal.pageSize.height-5);
-    doc.text('Nursing & Midwifery Unit',doc.internal.pageSize.width-14,doc.internal.pageSize.height-5,{align:'right'});
-  }
+  pdfAddFooterAndSignature(doc);
 
   doc.save(`TemaHospital_StaffRatio_${new Date().toISOString().slice(0,10)}.pdf`);
 };
+
 
 // ── Monthly ──
 function renderMonthly(c){
@@ -1254,9 +1285,9 @@ window.updateMonthly=function(){
       data:{labels,datasets:[
         {label:'Nurses',data:mN,backgroundColor:col+'cc',borderRadius:3,order:2},
         {label:'Patients',data:mP,backgroundColor:col+'55',borderRadius:3,order:2},
-        {label:'Recommended',data:Array(labels.length).fill(rec),type:'line',borderColor:'#1D9E75',borderDash:[4,3],borderWidth:2,pointRadius:0,fill:false,order:1}
+        {label:'Recommended',data:Array(labels.length).fill(rec),type:'line',borderColor:'#1D9E75',borderDash:[4,3],borderWidth:2,pointRadius:0,fill:false,order:1,datalabels:{display:false}}
       ]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{autoSkip:!isMonthView,maxRotation:0,font:{size:isMonthView?9:11}}},y:{beginAtZero:true}}}
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},datalabels:{display:!isMonthView,anchor:'end',align:'top',font:{size:9,weight:'600'},color:'#444441',formatter:(v)=>v||''}},scales:{x:{ticks:{autoSkip:!isMonthView,maxRotation:0,font:{size:isMonthView?9:11}}},y:{beginAtZero:true}}}
     });
   });
 
@@ -1280,8 +1311,8 @@ window.updateMonthly=function(){
 // ── Export Monthly charts to PDF (for printing) ──
 window.exportMonthlyChartsPDF=async function(){
   const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-  const GREEN=[15,110,86];const DARK=[26,26,26];const GRAY=[95,94,90];
+  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+  const GREEN=PDF_GREEN;const DARK=PDF_DARK;const GRAY=PDF_GRAY;
   const pageW=doc.internal.pageSize.width;
   const pageH=doc.internal.pageSize.height;
 
@@ -1293,16 +1324,10 @@ window.exportMonthlyChartsPDF=async function(){
   if(monthSel!=='all'&&daySel!=='all')titleSuffix=`${daySel} ${MONTHS[monthSel]} ${yr}`;
   else if(monthSel!=='all')titleSuffix=`${MONTHS[monthSel]} ${yr}`;
 
-  // Header
-  doc.setFillColor(...GREEN);
-  doc.rect(0,0,pageW,18,'F');
-  doc.setTextColor(255,255,255);
-  doc.setFontSize(13);doc.setFont('helvetica','bold');
-  doc.text('Tema Urban Hospital — Staffing Charts',14,11);
-  doc.setFontSize(8);doc.setFont('helvetica','normal');
-  doc.text(`${titleSuffix}  |  Generated: ${new Date().toLocaleString('en-GB')}`,14,15.5);
+  // Header (with logo)
+  pdfAddHeader(doc,'Tema Urban Hospital — Staffing Charts',`${titleSuffix}  |  Generated: ${new Date().toLocaleString('en-GB')}`);
 
-  let y=24;
+  let y=28;
   for(const uk of UNIT_KEYS){
     const canvas=document.getElementById('mc-'+uk);
     if(!canvas)continue;
@@ -1310,9 +1335,9 @@ window.exportMonthlyChartsPDF=async function(){
     const imgW=pageW-28;
     const imgH=imgW*(canvas.height/canvas.width);
 
-    if(y+imgH+16>pageH-12){
+    if(y+imgH+16>pageH-25){
       doc.addPage();
-      y=14;
+      y=28;
     }
 
     doc.setTextColor(...DARK);doc.setFontSize(11);doc.setFont('helvetica','bold');
@@ -1322,14 +1347,7 @@ window.exportMonthlyChartsPDF=async function(){
     y+=imgH+10;
   }
 
-  // Footer on each page
-  const pageCount=doc.internal.getNumberOfPages();
-  for(let i=1;i<=pageCount;i++){
-    doc.setPage(i);
-    doc.setFontSize(7);doc.setTextColor(...GRAY);doc.setFont('helvetica','normal');
-    doc.text(`Page ${i} of ${pageCount}  |  Tema Urban Hospital — Confidential`,14,pageH-5);
-    doc.text('Nursing & Midwifery Unit',pageW-14,pageH-5,{align:'right'});
-  }
+  pdfAddFooterAndSignature(doc);
 
   const fileSuffix=titleSuffix.replace(/\s+/g,'_');
   doc.save(`TemaHospital_Charts_${fileSuffix}.pdf`);
@@ -1344,6 +1362,16 @@ function renderAnnual(c){
   const totalPatients=validEntries.reduce((s,r)=>s+r.patients,0);
   const avgR=totalNurses>0?(totalPatients/totalNurses).toFixed(1):0;
   const okPct=appData.length?Math.round(appData.filter(r=>ratioStatus(r.unit,r.nurses,r.patients)==='ok').length/appData.length*100):0;
+
+  // Overall trend filter UI
+  const trendUnitOpts=`<option value="all" ${annualTrendUnit==='all'?'selected':''}>All units combined</option>`+
+    UNIT_KEYS.map(uk=>`<option value="${uk}" ${annualTrendUnit===uk?'selected':''}>${UNIT_LABELS[uk]}</option>`).join('');
+  const trendYearOpts=[yr-1,yr,yr+1].map(y=>`<option value="${y}" ${annualTrendYear===y?'selected':''}>${y}</option>`).join('');
+  const trendMonthOpts=MONTHS.map((m,i)=>`<option value="${i}" ${annualTrendMonth===i?'selected':''}>${m}</option>`).join('');
+  const isDaily=annualTrendGranularity==='daily';
+  const recLabel=annualTrendUnit==='all'
+    ?UNIT_KEYS.map(uk=>`${UNIT_LABELS[uk]} 1:${RECOMMENDED[uk]}`).join(' · ')
+    :`Recommended 1:${RECOMMENDED[annualTrendUnit]}`;
 
   c.innerHTML=`
     <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px">
@@ -1360,6 +1388,45 @@ function renderAnnual(c){
       <div class="metric ${okPct>=70?'metric-green':'metric-amber'}"><div class="metric-label">Adequate shifts</div><div class="metric-value">${okPct}%</div></div>
       <div class="metric"><div class="metric-label">Current year</div><div class="metric-value">${yr}</div></div>
     </div>
+
+    <div class="chart-card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          <div class="chart-title">Overall patient-to-staff ratio</div>
+          <div class="chart-sub">${isDaily?`Daily ratio — ${MONTHS[annualTrendMonth]} ${annualTrendYear}`:`Monthly ratio — ${annualTrendYear}`} · ${annualTrendUnit==='all'?'All units combined':UNIT_LABELS[annualTrendUnit]}</div>
+        </div>
+        <button class="btn-pdf" style="background:var(--green-700)" onclick="exportTrendChartPDF()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>Export chart (PDF)</button>
+      </div>
+      <div class="log-filter-bar" style="margin-top:12px">
+        <div class="log-filter-item">
+          <label>Granularity</label>
+          <select id="trend-granularity" onchange="setTrendFilter('granularity',this.value)">
+            <option value="monthly" ${!isDaily?'selected':''}>Monthly (per year)</option>
+            <option value="daily" ${isDaily?'selected':''}>Daily (per month)</option>
+          </select>
+        </div>
+        <div class="log-filter-item">
+          <label>Unit</label>
+          <select id="trend-unit" onchange="setTrendFilter('unit',this.value)">${trendUnitOpts}</select>
+        </div>
+        <div class="log-filter-item">
+          <label>Year</label>
+          <select id="trend-year" onchange="setTrendFilter('year',this.value)">${trendYearOpts}</select>
+        </div>
+        ${isDaily?`<div class="log-filter-item">
+          <label>Month</label>
+          <select id="trend-month" onchange="setTrendFilter('month',this.value)">${trendMonthOpts}</select>
+        </div>`:''}
+      </div>
+      <div class="chart-legend" style="margin-top:10px">
+        ${annualTrendUnit==='all'
+          ?UNIT_KEYS.map((uk,i)=>`<span class="legend-item"><span class="swatch" style="background:${CHART_COLORS[i]}"></span>${UNIT_LABELS[uk]}</span>`).join('')+`<span class="legend-item"><span class="swatch" style="background:#1A1A1A"></span>Facility-wide combined</span>`
+          :`<span class="legend-item"><span class="swatch" style="background:${CHART_COLORS[UNIT_KEYS.indexOf(annualTrendUnit)]}"></span>${UNIT_LABELS[annualTrendUnit]}</span>`}
+        <span class="legend-item"><span class="swatch-line" style="background:var(--green-600)"></span>${recLabel}</span>
+      </div>
+      <div style="position:relative;height:260px;margin-top:10px"><canvas id="trend-chart" role="img" aria-label="Overall patient to staff ratio trend">Overall ratio trend chart.</canvas></div>
+    </div>
+
     <div class="chart-card">
       <div class="chart-title">Annual avg patient load per nurse</div>
       <div class="chart-sub">Across years — all units compared</div>
@@ -1374,6 +1441,8 @@ function renderAnnual(c){
     </div>`;
 
   setTimeout(()=>{
+    renderTrendChart();
+
     const years=[yr-2,yr-1,yr];
     const el=document.getElementById('ann-chart');if(!el)return;
     charts['annual']=new Chart(el,{
@@ -1389,7 +1458,7 @@ function renderAnnual(c){
         }),
         backgroundColor:CHART_COLORS[i]+'cc',borderRadius:5
       }))},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{autoSkip:false}},y:{beginAtZero:true,title:{display:true,text:'Patients per nurse',font:{size:11}}}}}
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},datalabels:{display:true,anchor:'end',align:'top',font:{size:10,weight:'600'},color:'#444441',formatter:(v)=>v??''}},scales:{x:{ticks:{autoSkip:false}},y:{beginAtZero:true,title:{display:true,text:'Patients per nurse',font:{size:11}}}}}
     });
 
     const annTbl=document.getElementById('ann-tbl');if(!annTbl)return;
@@ -1409,8 +1478,146 @@ function renderAnnual(c){
   },80);
 }
 
+// ── Overall ratio trend chart (per unit + facility combined, daily or monthly) ──
+function renderTrendChart(){
+  const el=document.getElementById('trend-chart');if(!el)return;
+  if(charts['trend'])try{charts['trend'].destroy();}catch{}
+
+  const isDaily=annualTrendGranularity==='daily';
+  const yr=annualTrendYear;
+  const unitSel=annualTrendUnit;
+
+  let labels,getRowsFor;
+  if(isDaily){
+    const m=annualTrendMonth;
+    const daysInMonth=new Date(yr,m+1,0).getDate();
+    labels=Array.from({length:daysInMonth},(_,i)=>String(i+1));
+    getRowsFor=(idx)=>{
+      const dateStr=`${yr}-${String(m+1).padStart(2,'0')}-${String(idx+1).padStart(2,'0')}`;
+      return appData.filter(r=>r.date===dateStr);
+    };
+  }else{
+    labels=MONTHS;
+    getRowsFor=(idx)=>appData.filter(r=>r.date?.startsWith(`${yr}-${String(idx+1).padStart(2,'0')}`));
+  }
+
+  const computeRatio=(rows)=>{
+    if(!rows.length)return null;
+    const an=rows.reduce((s,r)=>s+r.nurses,0)/rows.length;
+    const ap=rows.reduce((s,r)=>s+r.patients,0)/rows.length;
+    return an>0?+(ap/an).toFixed(2):null;
+  };
+
+  let datasets=[];
+  if(unitSel==='all'){
+    // One line per unit
+    datasets=UNIT_KEYS.map((uk,i)=>({
+      label:UNIT_LABELS[uk],
+      data:labels.map((_,idx)=>computeRatio(getRowsFor(idx).filter(r=>r.unit===uk))),
+      borderColor:CHART_COLORS[i],backgroundColor:CHART_COLORS[i],
+      tension:0.3,spanGaps:true,pointRadius:3,pointHoverRadius:5,
+      datalabels:{display:true,align:'top',font:{size:9,weight:'600'},color:CHART_COLORS[i],formatter:(v)=>v!=null?v.toFixed(1):''}
+    }));
+    // Facility-wide combined line
+    datasets.push({
+      label:'Facility-wide combined',
+      data:labels.map((_,idx)=>computeRatio(getRowsFor(idx))),
+      borderColor:'#1A1A1A',backgroundColor:'#1A1A1A',
+      borderWidth:3,borderDash:[6,3],
+      tension:0.3,spanGaps:true,pointRadius:2,pointHoverRadius:4,
+      datalabels:{display:false}
+    });
+    // Recommended reference lines (one per unit, dashed, light)
+    UNIT_KEYS.forEach((uk,i)=>{
+      datasets.push({
+        label:`Recommended ${UNIT_LABELS[uk]}`,
+        data:Array(labels.length).fill(RECOMMENDED[uk]),
+        borderColor:CHART_COLORS[i]+'55',borderWidth:1,borderDash:[2,3],
+        pointRadius:0,fill:false,datalabels:{display:false}
+      });
+    });
+  }else{
+    datasets.push({
+      label:UNIT_LABELS[unitSel],
+      data:labels.map((_,idx)=>computeRatio(getRowsFor(idx).filter(r=>r.unit===unitSel))),
+      borderColor:CHART_COLORS[UNIT_KEYS.indexOf(unitSel)],backgroundColor:CHART_COLORS[UNIT_KEYS.indexOf(unitSel)],
+      tension:0.3,spanGaps:true,pointRadius:3,pointHoverRadius:5,
+      datalabels:{display:true,align:'top',font:{size:10,weight:'600'},color:'#444441',formatter:(v)=>v!=null?v.toFixed(1):''}
+    });
+    datasets.push({
+      label:'Recommended',
+      data:Array(labels.length).fill(RECOMMENDED[unitSel]),
+      borderColor:'#1D9E75',borderWidth:2,borderDash:[4,3],
+      pointRadius:0,fill:false,datalabels:{display:false}
+    });
+  }
+
+  charts['trend']=new Chart(el,{
+    type:'line',
+    data:{labels,datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},datalabels:{display:false}},
+      scales:{
+        x:{ticks:{autoSkip:isDaily,maxRotation:0,font:{size:isDaily?9:11}},title:{display:true,text:isDaily?'Day of month':'Month',font:{size:11}}},
+        y:{beginAtZero:true,title:{display:true,text:'Patients per nurse',font:{size:11}}}
+      }
+    }
+  });
+}
+
+// Filter handlers for the Overall ratio trend chart
+window.setTrendFilter=function(type,val){
+  if(type==='granularity')annualTrendGranularity=val;
+  else if(type==='unit')annualTrendUnit=val;
+  else if(type==='year')annualTrendYear=parseInt(val);
+  else if(type==='month')annualTrendMonth=parseInt(val);
+  renderAnnual(document.getElementById('tab-content'));
+};
+
+// ── Export Overall Ratio Trend chart to PDF (landscape, with logo + signature) ──
+window.exportTrendChartPDF=function(){
+  const canvas=document.getElementById('trend-chart');
+  if(!canvas){alert('Chart not ready yet — please wait a moment and try again.');return;}
+
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+  const DARK=PDF_DARK;const GRAY=PDF_GRAY;
+  const pageW=doc.internal.pageSize.width;
+  const pageH=doc.internal.pageSize.height;
+
+  const isDaily=annualTrendGranularity==='daily';
+  const unitLabel=annualTrendUnit==='all'?'All units combined':UNIT_LABELS[annualTrendUnit];
+  const periodLabel=isDaily?`Daily — ${MONTHS[annualTrendMonth]} ${annualTrendYear}`:`Monthly — ${annualTrendYear}`;
+
+  pdfAddHeader(doc,'Tema Urban Hospital — Overall Patient-to-Staff Ratio',`${periodLabel}  |  ${unitLabel}  |  Generated: ${new Date().toLocaleString('en-GB')}`);
+
+  // Recommended ratio note
+  doc.setTextColor(...DARK);doc.setFontSize(10);doc.setFont('helvetica','bold');
+  const recText=annualTrendUnit==='all'
+    ?UNIT_KEYS.map(uk=>`${UNIT_LABELS[uk]} 1:${RECOMMENDED[uk]}`).join('   ·   ')
+    :`Recommended ratio: 1:${RECOMMENDED[annualTrendUnit]}`;
+  doc.text(recText,14,33);
+
+  // Chart image
+  const imgData=canvas.toDataURL('image/png',1.0);
+  const imgW=pageW-28;
+  const imgH=imgW*(canvas.height/canvas.width);
+  doc.addImage(imgData,'PNG',14,38,imgW,Math.min(imgH,pageH-70));
+
+  pdfAddFooterAndSignature(doc);
+
+  const fileSuffix=`${unitLabel.replace(/\s+/g,'_')}_${periodLabel.replace(/[\s—]+/g,'_')}`;
+  doc.save(`TemaHospital_RatioTrend_${fileSuffix}.pdf`);
+};
+
 // ── Boot ──
 (function(){
+  // Register datalabels plugin globally but off by default (enabled per-chart)
+  if(window.ChartDataLabels){
+    Chart.register(window.ChartDataLabels);
+    Chart.defaults.set('plugins.datalabels',{display:false});
+  }
   // Apply hospital logo to favicon, login screen, and topbar
   document.getElementById('favicon').href=LOGO_DATA_URI;
   const loginLogo=document.getElementById('login-logo-img');
