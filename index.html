@@ -690,11 +690,7 @@ function renderDashboard(c){
     <div class="chart-card">
       <div class="chart-title">Staff vs patient load</div>
       <div class="chart-sub">${isHistorical?dateFilter:'Latest entry per unit'}${shiftFilter!=='all'?' — '+shiftFilter.charAt(0).toUpperCase()+shiftFilter.slice(1)+' shift':''}</div>
-      <div class="chart-legend">
-        <span class="legend-item"><span class="swatch" style="background:#378ADD"></span>Nurses</span>
-        <span class="legend-item"><span class="swatch" style="background:#D85A30"></span>Patients</span>
-      </div>
-      <div style="position:relative;height:200px"><canvas id="dash-chart" role="img" aria-label="Nurses vs patients per unit">Bar chart of staff vs patients by unit.</canvas></div>
+      <div style="position:relative;height:220px"><canvas id="dash-chart" role="img" aria-label="Nurses vs patients per unit">Bar chart of staff vs patients by unit.</canvas></div>
     </div>`;
 
   setTimeout(()=>{
@@ -706,7 +702,10 @@ function renderDashboard(c){
           {label:'Nurses',data:UNIT_KEYS.map(uk=>latest[uk]?.nurses||0),backgroundColor:'rgba(55,138,221,0.8)',borderRadius:4},
           {label:'Patients',data:UNIT_KEYS.map(uk=>latest[uk]?.patients||0),backgroundColor:'rgba(216,90,48,0.8)',borderRadius:4}
         ]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},datalabels:{display:true,anchor:'end',align:'top',font:{size:10,weight:'600'},color:'#444441',formatter:(v)=>v||''}},scales:{x:{ticks:{autoSkip:false}},y:{beginAtZero:true,ticks:{stepSize:1}}}}
+      options:{responsive:true,maintainAspectRatio:false,plugins:{
+        legend:{display:true,position:'top',align:'end',labels:{boxWidth:12,boxHeight:12,borderRadius:3,useBorderRadius:true,padding:14,font:{size:11,family:'DM Sans,sans-serif'},color:'#444441'}},
+        datalabels:{display:true,anchor:'end',align:'top',font:{size:10,weight:'600'},color:'#444441',formatter:(v)=>v||''}
+      },scales:{x:{ticks:{autoSkip:false}},y:{beginAtZero:true,ticks:{stepSize:1}}}}
     });
   },80);
 }
@@ -1199,12 +1198,7 @@ function renderMonthly(c){
     <div class="chart-card">
       <div class="chart-title">${UNIT_LABELS[uk]}</div>
       <div class="chart-sub">${isMonthView?`Daily avg nurses &amp; patients — ${MONTHS[monthSel]} ${yr}`:'Monthly avg nurses &amp; patients'} — recommended limit shown</div>
-      <div class="chart-legend">
-        <span class="legend-item"><span class="swatch" style="background:${CHART_COLORS[i]}"></span>Nurses</span>
-        <span class="legend-item"><span class="swatch" style="background:${CHART_COLORS[i]};opacity:.4"></span>Patients</span>
-        <span class="legend-item"><span class="swatch-line" style="background:var(--green-600)"></span>Recommended limit</span>
-      </div>
-      <div style="position:relative;height:180px"><canvas id="mc-${uk}" role="img" aria-label="Chart ${UNIT_LABELS[uk]}">${UNIT_LABELS[uk]} data.</canvas></div>
+      <div style="position:relative;height:200px"><canvas id="mc-${uk}" role="img" aria-label="Chart ${UNIT_LABELS[uk]}">${UNIT_LABELS[uk]} data.</canvas></div>
     </div>`).join('')}
     <div class="chart-card">
       <div class="chart-title">${isMonthView?'Daily':'Monthly'} summary table</div>
@@ -1287,7 +1281,10 @@ window.updateMonthly=function(){
         {label:'Patients',data:mP,backgroundColor:col+'55',borderRadius:3,order:2},
         {label:'Recommended',data:Array(labels.length).fill(rec),type:'line',borderColor:'#1D9E75',borderDash:[4,3],borderWidth:2,pointRadius:0,fill:false,order:1,datalabels:{display:false}}
       ]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},datalabels:{display:!isMonthView,anchor:'end',align:'top',font:{size:9,weight:'600'},color:'#444441',formatter:(v)=>v||''}},scales:{x:{ticks:{autoSkip:!isMonthView,maxRotation:0,font:{size:isMonthView?9:11}}},y:{beginAtZero:true}}}
+      options:{responsive:true,maintainAspectRatio:false,plugins:{
+        legend:{display:true,position:'top',align:'end',labels:{boxWidth:12,boxHeight:12,borderRadius:3,useBorderRadius:true,padding:14,font:{size:11,family:'DM Sans,sans-serif'},color:'#444441',filter:(item)=>item.text!=='Recommended'}},
+        datalabels:{display:!isMonthView,anchor:'end',align:'top',font:{size:9,weight:'600'},color:'#444441',formatter:(v)=>v||''}
+      },scales:{x:{ticks:{autoSkip:!isMonthView,maxRotation:0,font:{size:isMonthView?9:11}}},y:{beginAtZero:true}}}
     });
   });
 
@@ -1418,22 +1415,13 @@ function renderAnnual(c){
           <select id="trend-month" onchange="setTrendFilter('month',this.value)">${trendMonthOpts}</select>
         </div>`:''}
       </div>
-      <div class="chart-legend" style="margin-top:10px">
-        ${annualTrendUnit==='all'
-          ?UNIT_KEYS.map((uk,i)=>`<span class="legend-item"><span class="swatch" style="background:${CHART_COLORS[i]}"></span>${UNIT_LABELS[uk]}</span>`).join('')+`<span class="legend-item"><span class="swatch" style="background:#1A1A1A"></span>Facility-wide combined</span>`
-          :`<span class="legend-item"><span class="swatch" style="background:${CHART_COLORS[UNIT_KEYS.indexOf(annualTrendUnit)]}"></span>${UNIT_LABELS[annualTrendUnit]}</span>`}
-        <span class="legend-item"><span class="swatch-line" style="background:var(--green-600)"></span>${recLabel}</span>
-      </div>
       <div style="position:relative;height:260px;margin-top:10px"><canvas id="trend-chart" role="img" aria-label="Overall patient to staff ratio trend">Overall ratio trend chart.</canvas></div>
     </div>
 
     <div class="chart-card">
       <div class="chart-title">Annual avg patient load per nurse</div>
       <div class="chart-sub">Across years — all units compared</div>
-      <div class="chart-legend">
-        ${UNIT_KEYS.map((uk,i)=>`<span class="legend-item"><span class="swatch" style="background:${CHART_COLORS[i]}"></span>${UNIT_LABELS[uk]}</span>`).join('')}
-      </div>
-      <div style="position:relative;height:240px"><canvas id="ann-chart" role="img" aria-label="Annual ratio comparison">Annual ratios chart.</canvas></div>
+      <div style="position:relative;height:260px"><canvas id="ann-chart" role="img" aria-label="Annual ratio comparison">Annual ratios chart.</canvas></div>
     </div>
     <div class="chart-card">
       <div class="chart-title">Annual summary</div>
@@ -1458,7 +1446,10 @@ function renderAnnual(c){
         }),
         backgroundColor:CHART_COLORS[i]+'cc',borderRadius:5
       }))},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},datalabels:{display:true,anchor:'end',align:'top',font:{size:10,weight:'600'},color:'#444441',formatter:(v)=>v??''}},scales:{x:{ticks:{autoSkip:false}},y:{beginAtZero:true,title:{display:true,text:'Patients per nurse',font:{size:11}}}}}
+      options:{responsive:true,maintainAspectRatio:false,plugins:{
+        legend:{display:true,position:'top',align:'end',labels:{boxWidth:12,boxHeight:12,borderRadius:3,useBorderRadius:true,padding:14,font:{size:11,family:'DM Sans,sans-serif'},color:'#444441'}},
+        datalabels:{display:true,anchor:'end',align:'top',font:{size:10,weight:'600'},color:'#444441',formatter:(v)=>v??''}
+      },scales:{x:{ticks:{autoSkip:false}},y:{beginAtZero:true,title:{display:true,text:'Patients per nurse',font:{size:11}}}}}
     });
 
     const annTbl=document.getElementById('ann-tbl');if(!annTbl)return;
@@ -1557,7 +1548,24 @@ function renderTrendChart(){
     data:{labels,datasets},
     options:{
       responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},datalabels:{display:false}},
+      plugins:{
+        legend:{
+          display:true,
+          position:'top',
+          align:'end',
+          labels:{
+            boxWidth:20,
+            boxHeight:3,
+            borderRadius:2,
+            useBorderRadius:true,
+            padding:14,
+            font:{size:11,family:'DM Sans,sans-serif'},
+            color:'#444441',
+            filter:(item)=>!item.text.startsWith('Recommended')
+          }
+        },
+        datalabels:{display:false}
+      },
       scales:{
         x:{ticks:{autoSkip:isDaily,maxRotation:0,font:{size:isDaily?9:11}},title:{display:true,text:isDaily?'Day of month':'Month',font:{size:11}}},
         y:{beginAtZero:true,title:{display:true,text:'Patients per nurse',font:{size:11}}}
